@@ -83,6 +83,7 @@
     };
 
     function App() {
+      // PIN Authentication (1017)
       const [isAuthenticated, setIsAuthenticated] = useState(false);
       const [pin, setPin] = useState([]);
       const [isError, setIsError] = useState(false);
@@ -90,7 +91,7 @@
       const [currentDate, setCurrentDate] = useState(new Date()); 
       const [events, setEvents] = useState(() => {
         try {
-          const cached = localStorage.getItem('my_calendar_events_v8');
+          const cached = localStorage.getItem('my_calendar_events_v10');
           return cached ? JSON.parse(cached) : [];
         } catch(e) {
           return [];
@@ -124,7 +125,7 @@
           const data = await response.json();
           if (data && data.status === 'success' && Array.isArray(data.events)) {
             setEvents(data.events);
-            localStorage.setItem('my_calendar_events_v8', JSON.stringify(data.events));
+            localStorage.setItem('my_calendar_events_v10', JSON.stringify(data.events));
             
             if (selectedDateDetails) {
               const freshEvents = data.events.filter(e => isDateInRange(selectedDateDetails.dateStr, e.startDate, e.endDate));
@@ -145,7 +146,6 @@
         }
       }, [isAuthenticated]);
 
-      // PIN entry handler with automatic submission on 4 digits (1017)
       const handlePinPress = (num) => {
         if (pin.length < 4) {
           const newPin = [...pin, num];
@@ -166,14 +166,10 @@
       };
 
       const handlePinDelete = () => {
-        if (pin.length > 0) {
-          setPin(pin.slice(0, -1));
-        }
+        if (pin.length > 0) setPin(pin.slice(0, -1));
       };
 
-      const handlePinClear = () => {
-        setPin([]);
-      };
+      const handlePinClear = () => setPin([]);
 
       const getDaysInMonth = (year, month) => new Date(year, month + 1, 0).getDate();
       const getFirstDayOfMonth = (year, month) => new Date(year, month, 1).getDay();
@@ -235,7 +231,7 @@
           }
         } catch (error) {
           console.error("저장 오류:", error);
-          setSyncError("서버와 통신하는 중 오류가 발생했습니다.");
+          setSyncError("서버 통신 중 오류가 발생했습니다.");
         } finally {
           setIsSaving(false);
         }
@@ -285,97 +281,91 @@
         ).sort((a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime());
       }, [searchQuery, events]);
 
-      const renderCalendar = () => {
+      const renderCalendarRows = () => {
         const daysInMonth = getDaysInMonth(currentYear, currentMonth);
         const firstDay = getFirstDayOfMonth(currentYear, currentMonth);
         const prevMonthDays = getDaysInMonth(currentYear, currentMonth - 1);
-        const days = [];
+        
+        const allCells = [];
 
-        const renderDayCell = (year, month, day, isCurrentMonth) => {
-          const dateStr = formatDate(year, month, day);
-          const dayEvents = getEventsForDate(dateStr);
-          
-          const today = new Date();
-          const isToday = dateStr === formatDate(today.getFullYear(), today.getMonth(), today.getDate());
-          
-          const dayOfWeek = new Date(year, month, day).getDay();
-          const isSunday = dayOfWeek === 0;
-          const isSaturday = dayOfWeek === 6;
-          
-          const holidayName = getHolidayName(dateStr);
-          const isHoliday = !!holidayName;
-          const isRedDay = isSunday || isHoliday;
-
-          let dateTextColor = isCurrentMonth ? 'text-slate-200' : 'text-slate-600';
-          if (isRedDay) {
-            dateTextColor = isCurrentMonth ? 'text-rose-400 font-bold' : 'text-rose-900/50 font-medium';
-          } else if (isSaturday) {
-            dateTextColor = isCurrentMonth ? 'text-blue-400 font-bold' : 'text-blue-900/50 font-medium';
-          }
-
-          let bgColor = isCurrentMonth ? 'bg-slate-900' : 'bg-slate-950/40';
-          if (isCurrentMonth && isRedDay) bgColor = 'bg-rose-950/15';
-          
-          let ringStyle = isToday ? 'ring-2 ring-blue-500 ring-inset z-10' : '';
-
-          return (
-            <div 
-              key={`${year}-${month}-${day}`} 
-              onClick={() => setSelectedDateDetails({ day, dateStr, events: dayEvents })}
-              className={`p-1 border border-slate-800 flex flex-col cursor-pointer transition-colors hover:bg-slate-800/80 relative overflow-hidden ${bgColor} ${ringStyle}`}
-            >
-              <div className="flex justify-between items-start mb-0.5 shrink-0">
-                <div className="flex flex-col">
-                  <span className={`text-xs sm:text-sm w-5 h-5 sm:w-6 sm:h-6 flex items-center justify-center rounded-full ${isToday ? 'bg-blue-600 text-white font-bold' : dateTextColor}`}>
-                    {day}
-                  </span>
-                  {isHoliday && (
-                    <span className={`text-[8px] sm:text-[9px] truncate leading-none mt-0.5 ${isCurrentMonth ? 'text-rose-400 font-bold' : 'text-rose-900/50'}`}>
-                      {holidayName}
-                    </span>
-                  )}
-                </div>
-                {dayEvents.length > 0 && (
-                  <span className="text-[9px] text-slate-400 sm:hidden bg-slate-800 px-1 rounded">{dayEvents.length}</span>
-                )}
-              </div>
-              
-              <div className="space-y-0.5 overflow-y-auto flex-1 no-scrollbar">
-                {dayEvents.map(evt => (
-                  <div 
-                    key={evt.id} 
-                    className={`text-[9px] sm:text-[11px] truncate px-1.5 py-0.5 rounded font-semibold shadow-sm ${!isCurrentMonth && 'opacity-40'}
-                    ${evt.type === 'work' ? 'bg-blue-500/20 text-blue-300 border border-blue-500/30' : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'}`}
-                  >
-                    {evt.title}
-                  </div>
-                ))}
-              </div>
-            </div>
-          );
-        };
-
+        // Previous month filler
         const prevMonthNum = currentMonth === 0 ? 11 : currentMonth - 1;
         const prevYear = currentMonth === 0 ? currentYear - 1 : currentYear;
         for (let i = 0; i < firstDay; i++) {
           const day = prevMonthDays - firstDay + i + 1;
-          days.push(renderDayCell(prevYear, prevMonthNum, day, false));
+          allCells.push({ year: prevYear, month: prevMonthNum, day, isCurrentMonth: false });
         }
 
+        // Current month
         for (let day = 1; day <= daysInMonth; day++) {
-          days.push(renderDayCell(currentYear, currentMonth, day, true));
+          allCells.push({ year: currentYear, month: currentMonth, day, isCurrentMonth: true });
         }
 
-        const totalCells = firstDay + daysInMonth;
-        const nextDays = (7 - (totalCells % 7)) % 7;
+        // Next month filler to complete weeks
+        const totalCells = allCells.length;
+        const remaining = (7 - (totalCells % 7)) % 7;
         const nextMonthNum = currentMonth === 11 ? 0 : currentMonth + 1;
         const nextYear = currentMonth === 11 ? currentYear + 1 : currentYear;
-        
-        for (let i = 1; i <= nextDays; i++) {
-          days.push(renderDayCell(nextYear, nextMonthNum, i, false));
+        for (let i = 1; i <= remaining; i++) {
+          allCells.push({ year: nextYear, month: nextMonthNum, day: i, isCurrentMonth: false });
         }
 
-        return days;
+        // Group into weeks (rows of 7)
+        const weeks = [];
+        for (let i = 0; i < allCells.length; i += 7) {
+          weeks.push(allCells.slice(i, i + 7));
+        }
+
+        return weeks.map((week, weekIndex) => (
+          <div key={weekIndex} className="grid grid-cols-7 border-b border-slate-800/80 flex-1">
+            {week.map(({ year, month, day, isCurrentMonth }) => {
+              const dateStr = formatDate(year, month, day);
+              const dayEvents = getEventsForDate(dateStr);
+              const today = new Date();
+              const isToday = dateStr === formatDate(today.getFullYear(), today.getMonth(), today.getDate());
+              
+              const dayOfWeek = new Date(year, month, day).getDay();
+              const isSunday = dayOfWeek === 0;
+              const isSaturday = dayOfWeek === 6;
+              const holidayName = getHolidayName(dateStr);
+              const isRedDay = isSunday || !!holidayName;
+
+              let textColor = isCurrentMonth ? 'text-slate-200' : 'text-slate-600';
+              if (isRedDay) textColor = isCurrentMonth ? 'text-rose-400 font-bold' : 'text-rose-900/40';
+              else if (isSaturday) textColor = isCurrentMonth ? 'text-blue-400 font-bold' : 'text-blue-900/40';
+
+              return (
+                <div 
+                  key={dateStr}
+                  onClick={() => setSelectedDateDetails({ day, dateStr, events: dayEvents })}
+                  className={`p-1 flex flex-col cursor-pointer transition-colors hover:bg-slate-800/40 relative overflow-hidden
+                    ${isCurrentMonth ? 'bg-slate-900/60' : 'bg-slate-950/20'}`}
+                >
+                  <div className="flex items-center justify-between mb-0.5">
+                    <span className={`text-xs sm:text-sm w-5 h-5 flex items-center justify-center rounded-full ${isToday ? 'bg-blue-600 text-white font-bold' : textColor}`}>
+                      {day}
+                    </span>
+                    {holidayName && isCurrentMonth && (
+                      <span className="text-[8px] text-rose-400 truncate max-w-[32px] sm:max-w-none">{holidayName}</span>
+                    )}
+                  </div>
+
+                  <div className="space-y-0.5 overflow-y-auto flex-1 no-scrollbar">
+                    {dayEvents.map(evt => (
+                      <div 
+                        key={evt.id} 
+                        className={`text-[9px] sm:text-[10px] truncate px-1 py-0.5 rounded font-medium shadow-sm
+                          ${evt.type === 'work' ? 'bg-blue-500/20 text-blue-300 border border-blue-500/20' : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/20'}`}
+                      >
+                        {evt.title}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        ));
       };
 
       if (!isAuthenticated) {
@@ -388,7 +378,6 @@
               <h2 className="text-xl font-bold text-white mb-1">내 개인 달력</h2>
               <p className="text-xs text-slate-400 mb-8 text-center">보안을 위해 4자리 비밀번호를 입력해주세요</p>
               
-              {/* PIN dots indicator */}
               <div className={`flex gap-5 mb-4 ${isError ? 'animate-shake' : ''}`}>
                 {[0, 1, 2, 3].map((i) => (
                   <div 
@@ -403,7 +392,6 @@
               </div>
             </div>
 
-            {/* Numeric Keypad */}
             <div className="w-full max-w-xs grid grid-cols-3 gap-3 pb-8">
               {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((num) => (
                 <button
@@ -438,7 +426,7 @@
       }
 
       return (
-        <div className="h-[100dvh] w-screen flex flex-col p-1.5 sm:p-3 bg-slate-950 overflow-hidden">
+        <div className="h-[100dvh] w-screen flex flex-col p-1 sm:p-3 bg-slate-950 overflow-hidden">
           <div className="max-w-4xl w-full mx-auto bg-slate-900 rounded-2xl shadow-2xl border border-slate-800 flex flex-col flex-1 overflow-hidden relative">
             
             {syncError && (
@@ -448,29 +436,30 @@
               </div>
             )}
 
-            {/* Header Bar - Perfectly proportioned */}
-            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between px-4 py-3 border-b border-slate-800 gap-2 shrink-0 bg-slate-900">
-              <div className="flex items-center justify-between w-full sm:w-auto">
+            {/* Header Bar - Clean reference style */}
+            <div className="flex items-center justify-between px-4 py-3 border-b border-slate-800 shrink-0 bg-slate-900">
+              <div className="flex items-center gap-2">
                 <h2 
                   onClick={() => { setPickerYear(currentYear); setIsDatePickerOpen(true); }}
-                  className="text-2xl sm:text-3xl font-black text-white tracking-tight cursor-pointer hover:opacity-80 transition-opacity flex items-center gap-2"
+                  className="text-2xl sm:text-3xl font-black text-white tracking-tight cursor-pointer hover:opacity-80 transition-opacity flex items-center gap-1.5"
                 >
-                  <span>{currentYear}년 {currentMonth + 1}월</span>
+                  <span>{currentMonth + 1}월</span>
+                  <span className="text-slate-400 text-lg font-normal">({currentYear})</span>
                 </h2>
                 
-                <div className="flex items-center gap-1 sm:ml-3">
-                  <button onClick={prevMonth} className="p-1.5 bg-slate-800 hover:bg-slate-700 rounded-lg transition-colors text-slate-300">
+                <div className="flex items-center gap-1 ml-1">
+                  <button onClick={prevMonth} className="p-1 bg-slate-800 hover:bg-slate-700 rounded-lg text-slate-300 transition-colors">
                     <i data-lucide="chevron-left" className="w-4 h-4"></i>
                   </button>
-                  <button onClick={nextMonth} className="p-1.5 bg-slate-800 hover:bg-slate-700 rounded-lg transition-colors text-slate-300">
+                  <button onClick={nextMonth} className="p-1 bg-slate-800 hover:bg-slate-700 rounded-lg text-slate-300 transition-colors">
                     <i data-lucide="chevron-right" className="w-4 h-4"></i>
                   </button>
                 </div>
               </div>
 
-              <div className="flex items-center gap-1.5 w-full sm:w-auto justify-end">
+              <div className="flex items-center gap-1.5">
                 {isLoading ? (
-                   <div className="text-slate-400 text-xs flex items-center pr-1">
+                   <div className="text-slate-400 text-xs flex items-center px-1">
                      <i data-lucide="loader-2" className="w-4 h-4 animate-spin"></i>
                    </div>
                 ) : (
@@ -479,24 +468,13 @@
                    </button>
                 )}
                 
-                <div className="relative flex-1 sm:w-36">
-                  <input 
-                    type="text" 
-                    placeholder="검색..." 
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className="w-full pl-7 pr-2.5 py-1.5 bg-slate-950 border border-slate-800 focus:border-blue-500 rounded-xl text-xs outline-none text-slate-200 placeholder-slate-500 shadow-inner"
-                  />
-                  <i data-lucide="search" className="absolute left-2.5 top-2 text-slate-500 w-3.5 h-3.5"></i>
-                </div>
-                
                 <button 
                   onClick={() => {
                     const todayStr = formatDate(currentYear, currentMonth, new Date().getDate());
                     setFormData({ id: null, startDate: todayStr, endDate: todayStr, type: 'personal', title: '', description: '' });
                     setIsEventFormOpen(true);
                   }}
-                  className="bg-blue-600 hover:bg-blue-500 text-white px-3 py-1.5 rounded-xl flex items-center gap-1.5 transition-colors whitespace-nowrap shadow-sm font-semibold text-xs"
+                  className="bg-blue-600 hover:bg-blue-500 text-white px-3 py-1.5 rounded-xl flex items-center gap-1 transition-colors font-semibold text-xs shadow-sm"
                 >
                   <i data-lucide="plus" className="w-3.5 h-3.5"></i>
                   <span>추가</span>
@@ -504,57 +482,21 @@
               </div>
             </div>
 
-            {searchQuery.trim() ? (
-              <div className="p-4 bg-slate-900 flex-1 overflow-y-auto">
-                <h3 className="text-sm font-bold mb-3 flex items-center gap-1.5 text-white">
-                  <i data-lucide="search" className="text-blue-400 w-3.5 h-3.5"></i> 
-                  "{searchQuery}" 검색 결과 ({filteredSearchEvents.length}건)
-                </h3>
-                {filteredSearchEvents.length > 0 ? (
-                  <div className="space-y-2">
-                    {filteredSearchEvents.map(evt => (
-                      <div key={evt.id} className="bg-slate-800 p-3 rounded-xl shadow-sm border border-slate-700 flex items-center justify-between gap-2">
-                        <div>
-                          <div className="flex items-center gap-2 mb-1">
-                            <span className="text-xs font-medium text-slate-300 bg-slate-900 px-2 py-0.5 rounded">
-                              {evt.startDate} {evt.endDate && evt.endDate !== evt.startDate ? `~ ${evt.endDate}` : ''}
-                            </span>
-                            <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold border ${evt.type === 'work' ? 'bg-blue-500/20 text-blue-300 border-blue-500/30' : 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30'}`}>
-                              {evt.type === 'work' ? '업무' : '개인'}
-                            </span>
-                          </div>
-                          <h4 className="font-bold text-white text-sm">{evt.title}</h4>
-                          <p className="text-xs text-slate-400 mt-1">{evt.description}</p>
-                        </div>
-                        <button 
-                          onClick={() => handleEditEvent(evt)}
-                          className="text-xs px-3 py-1.5 bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition-colors shrink-0"
-                        >
-                          수정
-                        </button>
-                      </div>
-                    ))}
+            {/* Calendar Grid Container (Borderless rows style) */}
+            <div className="p-2 flex-1 flex flex-col overflow-hidden">
+              <div className="grid grid-cols-7 mb-1 shrink-0 border-b border-slate-800 pb-1">
+                {['일', '월', '화', '수', '목', '금', '토'].map((day, i) => (
+                  <div key={day} className={`text-center text-xs sm:text-sm font-bold
+                    ${i === 0 ? 'text-rose-400' : (i === 6 ? 'text-blue-400' : 'text-slate-400')}`}>
+                    {day}
                   </div>
-                ) : (
-                  <div className="text-center text-slate-500 py-12 text-sm">검색 결과가 없습니다.</div>
-                )}
+                ))}
               </div>
-            ) : (
-              <div className="p-2 sm:p-3 flex-1 flex flex-col overflow-hidden">
-                <div className="grid grid-cols-7 mb-1 shrink-0">
-                  {['일', '월', '화', '수', '목', '금', '토'].map((day, i) => (
-                    <div key={day} className={`text-center text-xs sm:text-sm font-bold py-1
-                      ${i === 0 ? 'text-rose-400' : (i === 6 ? 'text-blue-400' : 'text-slate-400')}`}>
-                      {day}
-                    </div>
-                  ))}
-                </div>
-                {/* Neatly packed grid with clean borders, perfectly fitting screen height */}
-                <div className="grid grid-cols-7 grid-rows-6 gap-px bg-slate-800 border border-slate-800 rounded-xl overflow-hidden shadow-sm flex-1">
-                  {renderCalendar()}
-                </div>
+              
+              <div className="flex-1 flex flex-col overflow-hidden bg-slate-900">
+                {renderCalendarRows()}
               </div>
-            )}
+            </div>
 
             {/* Date Details Modal */}
             {selectedDateDetails && (
@@ -619,7 +561,7 @@
               </div>
             )}
 
-            {/* Event Add/Edit Modal (with multi-day start/end support) */}
+            {/* Event Add/Edit Modal (with multi-day support) */}
             {isEventFormOpen && (
               <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-[60] p-4 backdrop-blur-sm">
                 <div className="bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden relative">
@@ -650,7 +592,7 @@
                         />
                       </div>
                       <div>
-                        <label className="block text-xs font-semibold text-slate-300 mb-1">종료일 (연속)</label>
+                        <label className="block text-xs font-semibold text-slate-300 mb-1">종료일 (기간)</label>
                         <input 
                           type="date" value={formData.endDate}
                           onChange={e => setFormData({...formData, endDate: e.target.value})}
