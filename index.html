@@ -90,7 +90,7 @@
       const [currentDate, setCurrentDate] = useState(new Date()); 
       const [events, setEvents] = useState(() => {
         try {
-          const cached = localStorage.getItem('my_calendar_events_v7');
+          const cached = localStorage.getItem('my_calendar_events_v8');
           return cached ? JSON.parse(cached) : [];
         } catch(e) {
           return [];
@@ -124,7 +124,7 @@
           const data = await response.json();
           if (data && data.status === 'success' && Array.isArray(data.events)) {
             setEvents(data.events);
-            localStorage.setItem('my_calendar_events_v7', JSON.stringify(data.events));
+            localStorage.setItem('my_calendar_events_v8', JSON.stringify(data.events));
             
             if (selectedDateDetails) {
               const freshEvents = data.events.filter(e => isDateInRange(selectedDateDetails.dateStr, e.startDate, e.endDate));
@@ -322,7 +322,7 @@
             <div 
               key={`${year}-${month}-${day}`} 
               onClick={() => setSelectedDateDetails({ day, dateStr, events: dayEvents })}
-              className={`p-1 border border-slate-800 flex flex-col cursor-pointer transition-colors hover:bg-slate-800/80 relative overflow-hidden h-[13.5vh] sm:h-auto ${bgColor} ${ringStyle}`}
+              className={`p-1 border border-slate-800 flex flex-col cursor-pointer transition-colors hover:bg-slate-800/80 relative overflow-hidden ${bgColor} ${ringStyle}`}
             >
               <div className="flex justify-between items-start mb-0.5 shrink-0">
                 <div className="flex flex-col">
@@ -448,17 +448,17 @@
               </div>
             )}
 
-            {/* Header Bar */}
-            <div className="flex items-center justify-between px-4 py-3 border-b border-slate-800 gap-2 shrink-0 bg-slate-900">
-              <div className="flex items-center gap-2.5">
+            {/* Header Bar - Perfectly proportioned */}
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between px-4 py-3 border-b border-slate-800 gap-2 shrink-0 bg-slate-900">
+              <div className="flex items-center justify-between w-full sm:w-auto">
                 <h2 
                   onClick={() => { setPickerYear(currentYear); setIsDatePickerOpen(true); }}
-                  className="text-xl sm:text-2xl font-black text-white tracking-tight cursor-pointer hover:opacity-80 transition-opacity flex items-center gap-2"
+                  className="text-2xl sm:text-3xl font-black text-white tracking-tight cursor-pointer hover:opacity-80 transition-opacity flex items-center gap-2"
                 >
                   <span>{currentYear}년 {currentMonth + 1}월</span>
                 </h2>
                 
-                <div className="flex items-center gap-1 ml-1">
+                <div className="flex items-center gap-1 sm:ml-3">
                   <button onClick={prevMonth} className="p-1.5 bg-slate-800 hover:bg-slate-700 rounded-lg transition-colors text-slate-300">
                     <i data-lucide="chevron-left" className="w-4 h-4"></i>
                   </button>
@@ -468,7 +468,7 @@
                 </div>
               </div>
 
-              <div className="flex items-center gap-1.5">
+              <div className="flex items-center gap-1.5 w-full sm:w-auto justify-end">
                 {isLoading ? (
                    <div className="text-slate-400 text-xs flex items-center pr-1">
                      <i data-lucide="loader-2" className="w-4 h-4 animate-spin"></i>
@@ -479,7 +479,7 @@
                    </button>
                 )}
                 
-                <div className="relative w-28 sm:w-40">
+                <div className="relative flex-1 sm:w-36">
                   <input 
                     type="text" 
                     placeholder="검색..." 
@@ -499,12 +499,11 @@
                   className="bg-blue-600 hover:bg-blue-500 text-white px-3 py-1.5 rounded-xl flex items-center gap-1.5 transition-colors whitespace-nowrap shadow-sm font-semibold text-xs"
                 >
                   <i data-lucide="plus" className="w-3.5 h-3.5"></i>
-                  <span className="hidden sm:inline">추가</span>
+                  <span>추가</span>
                 </button>
               </div>
             </div>
 
-            {/* Search Results or Calendar Grid */}
             {searchQuery.trim() ? (
               <div className="p-4 bg-slate-900 flex-1 overflow-y-auto">
                 <h3 className="text-sm font-bold mb-3 flex items-center gap-1.5 text-white">
@@ -550,8 +549,8 @@
                     </div>
                   ))}
                 </div>
-                {/* Neatly packed grid with clean borders, no excessive spacing */}
-                <div className="grid grid-cols-7 gap-px bg-slate-800 border border-slate-800 rounded-xl overflow-hidden shadow-sm flex-1">
+                {/* Neatly packed grid with clean borders, perfectly fitting screen height */}
+                <div className="grid grid-cols-7 grid-rows-6 gap-px bg-slate-800 border border-slate-800 rounded-xl overflow-hidden shadow-sm flex-1">
                   {renderCalendar()}
                 </div>
               </div>
