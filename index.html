@@ -24,8 +24,8 @@
     input[type="date"]::-webkit-calendar-picker-indicator { filter: invert(1); }
   </style>
 </head>
-<body class="bg-slate-900 text-slate-200 font-sans m-0 p-0 min-h-screen flex flex-col">
-  <div id="root" class="flex-1 flex flex-col"></div>
+<body class="bg-slate-900 text-slate-200 font-sans m-0 p-0 h-screen overflow-hidden flex flex-col">
+  <div id="root" class="flex-1 flex flex-col h-full overflow-hidden"></div>
 
   <script type="text/babel">
     const { useState, useMemo, useEffect } = React;
@@ -76,10 +76,14 @@
     };
 
     function App() {
+      const [isAuthenticated, setIsAuthenticated] = useState(false);
+      const [passwordInput, setPasswordInput] = useState('');
+      const [passwordError, setPasswordError] = useState(false);
+
       const [currentDate, setCurrentDate] = useState(new Date()); 
       const [events, setEvents] = useState(() => {
         try {
-          const cached = localStorage.getItem('my_calendar_events_v2');
+          const cached = localStorage.getItem('my_calendar_events_v3');
           return cached ? JSON.parse(cached) : [];
         } catch(e) {
           return [];
@@ -96,7 +100,6 @@
       const [isDatePickerOpen, setIsDatePickerOpen] = useState(false);
       const [pickerYear, setPickerYear] = useState(currentDate.getFullYear());
       
-      // 기간 일정 지원을 위해 startDate, endDate 분리
       const [formData, setFormData] = useState({ id: null, startDate: '', endDate: '', type: 'personal', title: '', description: '' });
 
       const currentYear = currentDate.getFullYear();
@@ -114,7 +117,7 @@
           const data = await response.json();
           if (data && data.status === 'success' && Array.isArray(data.events)) {
             setEvents(data.events);
-            localStorage.setItem('my_calendar_events_v2', JSON.stringify(data.events));
+            localStorage.setItem('my_calendar_events_v3', JSON.stringify(data.events));
             
             if (selectedDateDetails) {
               const freshEvents = data.events.filter(e => isDateInRange(selectedDateDetails.dateStr, e.startDate, e.endDate));
@@ -130,8 +133,10 @@
       };
 
       useEffect(() => {
-        fetchCalendarData();
-      }, []);
+        if (isAuthenticated) {
+          fetchCalendarData();
+        }
+      }, [isAuthenticated]);
 
       const getDaysInMonth = (year, month) => new Date(year, month + 1, 0).getDate();
       const getFirstDayOfMonth = (year, month) => new Date(year, month, 1).getDay();
@@ -145,7 +150,6 @@
       const nextMonth = () => setCurrentDate(new Date(currentYear, currentMonth + 1, 1));
       const prevMonth = () => setCurrentDate(new Date(currentYear, currentMonth - 1, 1));
 
-      // 날짜가 일정 범위(startDate ~ endDate)에 포함되는지 확인하는 함수
       const isDateInRange = (dateStr, start, end) => {
         if (!start) return false;
         const target = new Date(dateStr).setHours(0,0,0,0);
@@ -162,7 +166,6 @@
         e.preventDefault();
         if (!formData.title.trim() || !formData.startDate) return;
         
-        // 종료일이 시작일보다 앞서면 시작일과 동일하게 맞춤
         const finalStartDate = formData.startDate;
         const finalEndDate = formData.endDate && formData.endDate >= finalStartDate ? formData.endDate : finalStartDate;
 
@@ -266,46 +269,45 @@
           const isHoliday = !!holidayName;
           const isRedDay = isSunday || isHoliday;
 
-          let dateTextColor = isCurrentMonth ? 'text-slate-200' : 'text-slate-500/50';
+          let dateTextColor = isCurrentMonth ? 'text-slate-200' : 'text-slate-500/40';
           if (isRedDay) {
-            dateTextColor = isCurrentMonth ? 'text-rose-400 font-bold' : 'text-rose-900/60 font-medium';
+            dateTextColor = isCurrentMonth ? 'text-rose-400 font-bold' : 'text-rose-900/50 font-medium';
           } else if (isSaturday) {
-            dateTextColor = isCurrentMonth ? 'text-blue-400 font-bold' : 'text-blue-900/60 font-medium';
+            dateTextColor = isCurrentMonth ? 'text-blue-400 font-bold' : 'text-blue-900/50 font-medium';
           }
 
-          let bgColor = isCurrentMonth ? 'bg-slate-800' : 'bg-slate-800/40';
+          let bgColor = isCurrentMonth ? 'bg-slate-800' : 'bg-slate-800/30';
           if (isCurrentMonth && isRedDay) bgColor = 'bg-rose-950/20';
-          if (!isCurrentMonth && isRedDay) bgColor = 'bg-rose-950/10';
           
-          let ringStyle = isToday ? 'ring-2 ring-blue-500 ring-inset z-10' : '';
+          let ringStyle = isToday ? 'ring-1.5 ring-blue-500 ring-inset z-10' : '';
 
           return (
             <div 
               key={`${year}-${month}-${day}`} 
               onClick={() => setSelectedDateDetails({ day, dateStr, events: dayEvents })}
-              className={`p-1 sm:p-2 border border-slate-700 flex-1 min-h-[70px] sm:min-h-[100px] cursor-pointer transition-colors hover:bg-slate-700 relative group flex flex-col ${bgColor} ${ringStyle}`}
+              className={`p-0.5 sm:p-1.5 border border-slate-700/70 flex-1 min-h-[46px] sm:min-h-[85px] cursor-pointer transition-colors hover:bg-slate-700 relative group flex flex-col ${bgColor} ${ringStyle}`}
             >
               <div className="flex justify-between items-start mb-0.5">
                 <div className="flex flex-col">
-                  <span className={`text-xs sm:text-sm w-5 h-5 sm:w-6 sm:h-6 flex items-center justify-center rounded-full ${isToday ? 'bg-blue-600 text-white font-bold' : dateTextColor}`}>
+                  <span className={`text-[11px] sm:text-xs w-4 h-4 sm:w-5 sm:h-5 flex items-center justify-center rounded-full ${isToday ? 'bg-blue-600 text-white font-bold' : dateTextColor}`}>
                     {day}
                   </span>
                   {isHoliday && (
-                    <span className={`text-[8px] sm:text-[10px] truncate leading-tight mt-0.5 ${isCurrentMonth ? 'text-rose-400 font-bold' : 'text-rose-900/60 font-medium'}`}>
+                    <span className={`text-[7px] sm:text-[9px] truncate leading-none mt-0.5 ${isCurrentMonth ? 'text-rose-400 font-bold' : 'text-rose-900/50'}`}>
                       {holidayName}
                     </span>
                   )}
                 </div>
                 {dayEvents.length > 0 && (
-                  <span className="text-[9px] text-slate-400 sm:hidden bg-slate-700 px-1 py-0.2 rounded-full">{dayEvents.length}</span>
+                  <span className="text-[8px] text-slate-400 sm:hidden bg-slate-700/80 px-1 rounded">{dayEvents.length}</span>
                 )}
               </div>
               
-              <div className="space-y-0.5 overflow-y-auto flex-1 no-scrollbar mt-0.5">
+              <div className="space-y-0.5 overflow-y-auto flex-1 no-scrollbar">
                 {dayEvents.map(evt => (
                   <div 
                     key={evt.id} 
-                    className={`text-[9px] sm:text-xs truncate px-1 py-0.5 rounded font-bold shadow-sm ${!isCurrentMonth && 'opacity-40'}
+                    className={`text-[8px] sm:text-[11px] truncate px-1 py-0.2 rounded font-medium shadow-sm ${!isCurrentMonth && 'opacity-40'}
                     ${evt.type === 'work' ? 'bg-blue-500/20 text-blue-300 border border-blue-500/30' : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'}`}
                   >
                     {evt.title}
@@ -339,57 +341,98 @@
         return days;
       };
 
+      if (!isAuthenticated) {
+        return (
+          <div className="h-screen w-screen bg-slate-900 text-slate-200 flex items-center justify-center p-4">
+            <div className="bg-slate-800 border border-slate-700 p-6 rounded-2xl shadow-2xl w-full max-w-xs text-center">
+              <div className="w-12 h-12 bg-blue-600/20 text-blue-400 rounded-full flex items-center justify-center mx-auto mb-3">
+                <i className="fa-solid fa-lock text-lg"></i>
+              </div>
+              <h2 className="text-base font-bold text-white mb-1">비밀번호 입력</h2>
+              <p className="text-[11px] text-slate-400 mb-4">개인 달력에 접근하려면 비밀번호를 입력하세요.</p>
+              <form onSubmit={(e) => {
+                e.preventDefault();
+                if (passwordInput === '1017') {
+                  setIsAuthenticated(true);
+                  setPasswordError(false);
+                } else {
+                  setPasswordError(true);
+                  setPasswordInput('');
+                }
+              }} className="space-y-3">
+                <input
+                  type="password"
+                  maxLength="4"
+                  value={passwordInput}
+                  onChange={(e) => setPasswordInput(e.target.value)}
+                  placeholder="비밀번호 4자리"
+                  className="w-full text-center tracking-widest text-base p-2 bg-slate-900 border border-slate-700 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-white shadow-inner"
+                  autoFocus
+                />
+                {passwordError && <p className="text-[11px] text-rose-400">비밀번호가 틀렸습니다.</p>}
+                <button
+                  type="submit"
+                  className="w-full py-2 bg-blue-600 hover:bg-blue-500 text-white font-medium rounded-xl transition-colors text-xs shadow-sm"
+                >
+                  잠금 해제
+                </button>
+              </form>
+            </div>
+          </div>
+        );
+      }
+
       return (
-        <div className="min-h-screen flex flex-col p-1 sm:p-4 md:p-8 bg-slate-900">
-          <div className="max-w-5xl w-full mx-auto bg-slate-800 rounded-2xl shadow-xl border border-slate-700 flex flex-col flex-1 overflow-hidden relative">
+        <div className="h-screen w-screen flex flex-col p-1 sm:p-3 bg-slate-900 overflow-hidden">
+          <div className="max-w-4xl w-full mx-auto bg-slate-800 rounded-xl shadow-xl border border-slate-700 flex flex-col flex-1 overflow-hidden relative">
             
             {syncError && (
-              <div className="bg-rose-900/90 text-white text-xs sm:text-sm px-4 py-2 flex items-center justify-between">
+              <div className="bg-rose-900/90 text-white text-[11px] px-3 py-1 flex items-center justify-between shrink-0">
                 <span>{syncError}</span>
-                <button onClick={() => setSyncError(null)} className="hover:text-rose-200"><i className="fa-solid fa-xmark text-base"></i></button>
+                <button onClick={() => setSyncError(null)} className="hover:text-rose-200"><i className="fa-solid fa-xmark text-sm"></i></button>
               </div>
             )}
 
             {/* 헤더 바 */}
-            <div className="flex flex-col sm:flex-row items-center justify-between p-3 sm:p-6 border-b border-slate-700 gap-3 shrink-0">
-              <div className="flex items-center gap-3">
-                <button onClick={prevMonth} className="p-2 hover:bg-slate-700 rounded-full transition-colors text-slate-400 hover:text-white">
-                  <i className="fa-solid fa-chevron-left text-lg"></i>
+            <div className="flex items-center justify-between px-3 py-2 sm:px-4 sm:py-3 border-b border-slate-700 gap-2 shrink-0 bg-slate-800">
+              <div className="flex items-center gap-2">
+                <button onClick={prevMonth} className="p-1.5 hover:bg-slate-700 rounded-full transition-colors text-slate-400 hover:text-white">
+                  <i className="fa-solid fa-chevron-left text-sm"></i>
                 </button>
                 
                 <h2 
                   onClick={() => { setPickerYear(currentYear); setIsDatePickerOpen(true); }}
-                  className="text-lg sm:text-2xl font-bold flex items-center gap-2 min-w-[110px] justify-center cursor-pointer hover:bg-slate-700 px-3 py-1.5 rounded-xl transition-colors text-white group"
+                  className="text-sm sm:text-lg font-bold flex items-center gap-1.5 cursor-pointer hover:bg-slate-700 px-2.5 py-1 rounded-lg transition-colors text-white group"
                 >
-                  <i className="fa-regular fa-calendar text-blue-500 hidden sm:block group-hover:scale-110 transition-transform text-xl"></i>
+                  <i className="fa-regular fa-calendar text-blue-500 hidden sm:block text-base"></i>
                   {currentYear}년 {currentMonth + 1}월
                 </h2>
                 
-                <button onClick={nextMonth} className="p-2 hover:bg-slate-700 rounded-full transition-colors text-slate-400 hover:text-white">
-                  <i className="fa-solid fa-chevron-right text-lg"></i>
+                <button onClick={nextMonth} className="p-1.5 hover:bg-slate-700 rounded-full transition-colors text-slate-400 hover:text-white">
+                  <i className="fa-solid fa-chevron-right text-sm"></i>
                 </button>
               </div>
 
-              <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
+              <div className="flex items-center gap-1.5">
                 {isLoading ? (
-                   <div className="text-slate-400 text-xs sm:text-sm flex items-center gap-1.5 pr-2">
-                     <i className="fa-solid fa-spinner fa-spin text-sm"></i> 동기화 중...
+                   <div className="text-slate-400 text-[11px] flex items-center gap-1 pr-1">
+                     <i className="fa-solid fa-spinner fa-spin"></i>
                    </div>
                 ) : (
-                   <button onClick={fetchCalendarData} className="p-2 text-slate-400 hover:text-white hover:bg-slate-700 rounded-full transition-colors" title="새로고침">
-                     <i className="fa-solid fa-rotate text-base"></i>
+                   <button onClick={fetchCalendarData} className="p-1.5 text-slate-400 hover:text-white hover:bg-slate-700 rounded-full transition-colors" title="새로고침">
+                     <i className="fa-solid fa-rotate text-xs"></i>
                    </button>
                 )}
                 
-                <div className="relative flex-1 sm:w-48">
+                <div className="relative w-28 sm:w-40">
                   <input 
                     type="text" 
-                    placeholder="일정 검색..." 
+                    placeholder="검색..." 
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    className="w-full pl-8 pr-3 py-1.5 bg-slate-900 border-transparent focus:bg-slate-950 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/50 rounded-lg text-xs sm:text-sm transition-all outline-none text-slate-200 placeholder-slate-500 shadow-inner"
+                    className="w-full pl-7 pr-2 py-1 bg-slate-900 border-transparent focus:bg-slate-950 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 rounded-lg text-xs transition-all outline-none text-slate-200 placeholder-slate-500 shadow-inner"
                   />
-                  <i className="fa-solid fa-magnifying-glass absolute left-2.5 top-2.5 text-slate-500 text-xs"></i>
+                  <i className="fa-solid fa-magnifying-glass absolute left-2 top-2 text-slate-500 text-[10px]"></i>
                 </div>
                 
                 <button 
@@ -398,61 +441,61 @@
                     setFormData({ id: null, startDate: todayStr, endDate: todayStr, type: 'personal', title: '', description: '' });
                     setIsEventFormOpen(true);
                   }}
-                  className="bg-blue-600 hover:bg-blue-500 text-white p-2 sm:px-4 rounded-lg flex items-center gap-1 transition-colors whitespace-nowrap shadow-sm font-medium text-xs sm:text-sm"
+                  className="bg-blue-600 hover:bg-blue-500 text-white px-2.5 py-1 rounded-lg flex items-center gap-1 transition-colors whitespace-nowrap shadow-sm font-medium text-xs"
                 >
-                  <i className="fa-solid fa-plus text-sm"></i>
-                  <span className="hidden sm:inline">일정 추가</span>
+                  <i className="fa-solid fa-plus text-[10px]"></i>
+                  <span className="hidden sm:inline">추가</span>
                 </button>
               </div>
             </div>
 
             {/* 검색 결과 화면 또는 달력 그리드 */}
             {searchQuery.trim() ? (
-              <div className="p-4 sm:p-6 bg-slate-800 flex-1 overflow-y-auto">
-                <h3 className="text-base sm:text-lg font-bold mb-4 flex items-center gap-2 text-white">
-                  <i className="fa-solid fa-magnifying-glass text-blue-400 text-base"></i> 
+              <div className="p-3 bg-slate-800 flex-1 overflow-y-auto">
+                <h3 className="text-sm font-bold mb-3 flex items-center gap-1.5 text-white">
+                  <i className="fa-solid fa-magnifying-glass text-blue-400 text-xs"></i> 
                   "{searchQuery}" 검색 결과 ({filteredSearchEvents.length}건)
                 </h3>
                 {filteredSearchEvents.length > 0 ? (
-                  <div className="space-y-3">
+                  <div className="space-y-2">
                     {filteredSearchEvents.map(evt => (
-                      <div key={evt.id} className="bg-slate-700 p-3 sm:p-4 rounded-xl shadow-sm border border-slate-600 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                      <div key={evt.id} className="bg-slate-700/80 p-3 rounded-xl shadow-sm border border-slate-600 flex items-center justify-between gap-3">
                         <div>
                           <div className="flex items-center gap-2 mb-1">
-                            <span className="text-xs sm:text-sm font-medium text-slate-300 bg-slate-800 border border-slate-600 px-2 py-0.5 rounded-md">
+                            <span className="text-[11px] font-medium text-slate-300 bg-slate-800 px-2 py-0.5 rounded">
                               {evt.startDate} {evt.endDate && evt.endDate !== evt.startDate ? `~ ${evt.endDate}` : ''}
                             </span>
-                            <span className={`text-[10px] px-2 py-0.5 rounded-full flex items-center gap-1 font-bold border ${evt.type === 'work' ? 'bg-blue-500/20 text-blue-300 border-blue-500/30' : 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30'}`}>
+                            <span className={`text-[9px] px-1.5 py-0.2 rounded-full font-bold border ${evt.type === 'work' ? 'bg-blue-500/20 text-blue-300 border-blue-500/30' : 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30'}`}>
                               {evt.type === 'work' ? '업무' : '개인'}
                             </span>
                           </div>
-                          <h4 className="font-bold text-white text-sm sm:text-base">{evt.title}</h4>
-                          <p className="text-xs sm:text-sm text-slate-400 mt-1">{evt.description}</p>
+                          <h4 className="font-bold text-white text-sm">{evt.title}</h4>
+                          <p className="text-xs text-slate-400 mt-0.5">{evt.description}</p>
                         </div>
                         <button 
                           onClick={() => handleEditEvent(evt)}
-                          className="text-xs sm:text-sm px-3 py-1.5 bg-slate-600 hover:bg-slate-500 text-white rounded-lg transition-colors shrink-0 flex items-center justify-center gap-1"
+                          className="text-xs px-2.5 py-1 bg-slate-600 hover:bg-slate-500 text-white rounded-lg transition-colors shrink-0"
                         >
-                          <i className="fa-solid fa-pen text-xs"></i> 수정하기
+                          수정
                         </button>
                       </div>
                     ))}
                   </div>
                 ) : (
-                  <div className="text-center text-slate-500 py-12">검색 결과가 없습니다.</div>
+                  <div className="text-center text-slate-500 py-10 text-xs">검색 결과가 없습니다.</div>
                 )}
               </div>
             ) : (
-              <div className="p-2 sm:p-6 flex-1 flex flex-col">
+              <div className="p-1 sm:p-3 flex-1 flex flex-col overflow-hidden">
                 <div className="grid grid-cols-7 mb-1 shrink-0">
                   {['일', '월', '화', '수', '목', '금', '토'].map((day, i) => (
-                    <div key={day} className={`text-center text-xs sm:text-sm font-semibold py-1.5
+                    <div key={day} className={`text-center text-[11px] sm:text-xs font-semibold py-0.5
                       ${i === 0 ? 'text-rose-400' : (i === 6 ? 'text-blue-400' : 'text-slate-400')}`}>
                       {day}
                     </div>
                   ))}
                 </div>
-                <div className="grid grid-cols-7 gap-px bg-slate-700 border border-slate-700 rounded-xl overflow-hidden shadow-sm flex-1">
+                <div className="grid grid-cols-7 gap-px bg-slate-700/80 border border-slate-700 rounded-lg overflow-hidden shadow-sm flex-1">
                   {renderCalendar()}
                 </div>
               </div>
@@ -461,172 +504,163 @@
             {/* 날짜 상세 팝업 */}
             {selectedDateDetails && (
               <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-3 backdrop-blur-sm">
-                <div className="bg-slate-800 border border-slate-600 rounded-2xl shadow-2xl w-full max-w-sm sm:max-w-md overflow-hidden flex flex-col max-h-[85vh]">
-                  <div className="flex items-center justify-between p-4 border-b border-slate-700 bg-slate-700/80">
-                    <h3 className="font-bold text-base sm:text-lg flex items-center gap-2">
-                      <span className="bg-slate-900 px-2 py-1 rounded-lg border border-slate-600 text-blue-400 shadow-sm">{selectedDateDetails.day}일</span>
-                      <span className="text-slate-300 text-xs sm:text-sm font-normal">{currentYear}년 {currentMonth + 1}월</span>
+                <div className="bg-slate-800 border border-slate-600 rounded-xl shadow-2xl w-full max-w-xs sm:max-w-sm overflow-hidden flex flex-col max-h-[75vh]">
+                  <div className="flex items-center justify-between px-3 py-2.5 border-b border-slate-700 bg-slate-700/80">
+                    <h3 className="font-bold text-sm flex items-center gap-1.5">
+                      <span className="bg-slate-900 px-2 py-0.5 rounded border border-slate-600 text-blue-400 text-xs">{selectedDateDetails.day}일</span>
+                      <span className="text-slate-300 text-xs font-normal">{currentYear}년 {currentMonth + 1}월</span>
                     </h3>
-                    <button onClick={() => setSelectedDateDetails(null)} className="p-1.5 hover:bg-slate-600 rounded-full text-slate-400 hover:text-white transition-colors">
-                      <i className="fa-solid fa-xmark text-lg"></i>
+                    <button onClick={() => setSelectedDateDetails(null)} className="p-1 hover:bg-slate-600 rounded-full text-slate-400 hover:text-white transition-colors">
+                      <i className="fa-solid fa-xmark text-sm"></i>
                     </button>
                   </div>
                   
-                  <div className="p-4 overflow-y-auto flex-1 space-y-3">
+                  <div className="p-3 overflow-y-auto flex-1 space-y-2.5">
                     {selectedDateDetails.events.length > 0 ? (
                       selectedDateDetails.events.map(evt => (
-                        <div key={evt.id} className="bg-slate-700 p-3.5 rounded-xl shadow-sm border border-slate-600 relative overflow-hidden">
+                        <div key={evt.id} className="bg-slate-700 p-3 rounded-lg shadow-sm border border-slate-600 relative overflow-hidden">
                           <div className={`absolute top-0 left-0 w-1 h-full ${evt.type === 'work' ? 'bg-blue-500' : 'bg-emerald-500'}`}></div>
                           <div className="flex items-start justify-between">
-                            <div className="flex flex-col gap-1 mb-2 pl-2">
-                              <div className="flex items-center gap-2">
-                                <span className={`text-[10px] px-2 py-0.5 rounded-full flex items-center gap-1 font-bold border ${evt.type === 'work' ? 'bg-blue-500/20 text-blue-300 border-blue-500/30' : 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30'}`}>
-                                  {evt.type === 'work' ? <i className="fa-solid fa-briefcase text-[10px]"></i> : <i className="fa-solid fa-user text-[10px]"></i>}
+                            <div className="flex flex-col gap-0.5 pl-1.5">
+                              <div className="flex items-center gap-1.5">
+                                <span className={`text-[9px] px-1.5 py-0.2 rounded-full font-bold border ${evt.type === 'work' ? 'bg-blue-500/20 text-blue-300 border-blue-500/30' : 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30'}`}>
                                   {evt.type === 'work' ? '업무' : '개인'}
                                 </span>
-                                <span className="text-xs text-slate-400">
+                                <span className="text-[11px] text-slate-400">
                                   {evt.startDate} {evt.endDate && evt.endDate !== evt.startDate ? `~ ${evt.endDate}` : ''}
                                 </span>
                               </div>
-                              <h4 className="font-semibold text-white text-base">{evt.title}</h4>
+                              <h4 className="font-semibold text-white text-xs sm:text-sm">{evt.title}</h4>
                             </div>
                             <button 
                               onClick={(e) => { e.stopPropagation(); handleEditEvent(evt); }}
-                              className="text-slate-400 hover:text-blue-400 hover:bg-slate-600 p-1.5 rounded-md transition-colors"
+                              className="text-slate-400 hover:text-blue-400 p-1 rounded transition-colors text-xs"
                             >
-                              <i className="fa-solid fa-pen text-sm"></i>
+                              <i className="fa-solid fa-pen"></i>
                             </button>
                           </div>
                           {evt.description && (
-                            <div className="pl-2 flex gap-2 text-slate-200 text-xs sm:text-sm mt-2 bg-slate-800/50 p-2.5 rounded-lg border border-slate-600">
-                              <i className="fa-solid fa-file-lines shrink-0 text-slate-400 mt-0.5"></i>
-                              <p className="whitespace-pre-wrap leading-relaxed">{evt.description}</p>
-                            </div>
+                            <p className="pl-1.5 text-xs text-slate-300 mt-1.5 bg-slate-800/60 p-2 rounded border border-slate-600/50 whitespace-pre-wrap">{evt.description}</p>
                           )}
                         </div>
                       ))
                     ) : (
-                      <div className="text-center py-10 text-slate-500 flex flex-col items-center">
-                        <i className="fa-regular fa-calendar mb-2 opacity-20 text-3xl"></i>
-                        <p className="text-sm">등록된 일정이 없습니다.</p>
-                      </div>
+                      <div className="text-center py-8 text-slate-500 text-xs">등록된 일정이 없습니다.</div>
                     )}
                   </div>
                   
-                  <div className="p-3 border-t border-slate-700 bg-slate-800">
+                  <div className="p-2.5 border-t border-slate-700 bg-slate-800">
                     <button 
                       onClick={() => {
                         setFormData({ id: null, startDate: selectedDateDetails.dateStr, endDate: selectedDateDetails.dateStr, type: 'personal', title: '', description: '' });
                         setIsEventFormOpen(true);
                       }}
-                      className="w-full bg-slate-700 border border-slate-600 text-blue-400 hover:text-blue-300 hover:bg-slate-600 py-2.5 rounded-lg font-medium transition-colors text-sm flex items-center justify-center gap-2"
+                      className="w-full bg-slate-700 border border-slate-600 text-blue-400 hover:bg-slate-600 py-2 rounded-lg font-medium transition-colors text-xs flex items-center justify-center gap-1.5 shadow-sm"
                     >
-                      <i className="fa-solid fa-plus text-sm"></i> 이 날짜에 일정 추가
+                      <i className="fa-solid fa-plus text-xs"></i> 이 날짜에 일정 추가
                     </button>
                   </div>
                 </div>
               </div>
             )}
 
-            {/* 일정 추가/수정 모달 (시작일~종료일 선택 기능 포함) */}
+            {/* 일정 추가/수정 모달 */}
             {isEventFormOpen && (
               <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[60] p-3 backdrop-blur-sm">
-                <div className="bg-slate-800 border border-slate-600 rounded-2xl shadow-2xl w-full max-w-md overflow-hidden relative">
+                <div className="bg-slate-800 border border-slate-600 rounded-xl shadow-2xl w-full max-w-xs sm:max-w-sm overflow-hidden relative">
                   
                   {isSaving && (
                     <div className="absolute inset-0 bg-slate-900/60 z-10 flex flex-col items-center justify-center backdrop-blur-sm">
-                      <i className="fa-solid fa-spinner fa-spin text-blue-500 mb-2 text-2xl"></i>
-                      <span className="text-xs sm:text-sm font-medium text-white">시트에 기록 중...</span>
+                      <i className="fa-solid fa-spinner fa-spin text-blue-500 mb-1.5 text-xl"></i>
+                      <span className="text-xs font-medium text-white">저장 중...</span>
                     </div>
                   )}
 
-                  <div className="flex items-center justify-between p-4 border-b border-slate-700 bg-slate-700/80">
-                    <h3 className="font-bold text-base sm:text-lg text-white">{formData.id ? '일정 수정' : '새 일정 추가'}</h3>
+                  <div className="flex items-center justify-between px-3 py-2.5 border-b border-slate-700 bg-slate-700/80">
+                    <h3 className="font-bold text-sm text-white">{formData.id ? '일정 수정' : '새 일정 추가'}</h3>
                     <button onClick={() => !isSaving && setIsEventFormOpen(false)} className="p-1 hover:bg-slate-600 rounded-full text-slate-400 hover:text-white transition-colors">
-                      <i className="fa-solid fa-xmark text-lg"></i>
+                      <i className="fa-solid fa-xmark text-sm"></i>
                     </button>
                   </div>
                   
-                  <form onSubmit={handleSaveEvent} className="p-4 sm:p-5 space-y-3.5">
-                    {/* 기간 설정 (시작일 ~ 종료일) */}
-                    <div className="grid grid-cols-2 gap-3">
+                  <form onSubmit={handleSaveEvent} className="p-3 space-y-2.5">
+                    <div className="grid grid-cols-2 gap-2">
                       <div>
-                        <label className="block text-[11px] sm:text-xs font-medium text-slate-300 mb-1">시작일</label>
+                        <label className="block text-[10px] font-medium text-slate-300 mb-0.5">시작일</label>
                         <input 
                           type="date" required value={formData.startDate}
                           onChange={e => setFormData({...formData, startDate: e.target.value})}
-                          className="w-full p-2 bg-slate-900 border border-slate-700 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition-all text-xs sm:text-sm text-slate-200 shadow-inner"
+                          className="w-full p-1.5 bg-slate-900 border border-slate-700 rounded-lg focus:ring-1 focus:ring-blue-500 outline-none text-xs text-slate-200"
                           style={{ colorScheme: 'dark' }}
                         />
                       </div>
                       <div>
-                        <label className="block text-[11px] sm:text-xs font-medium text-slate-300 mb-1">종료일 (연속 일정)</label>
+                        <label className="block text-[10px] font-medium text-slate-300 mb-0.5">종료일 (연속)</label>
                         <input 
                           type="date" value={formData.endDate}
                           onChange={e => setFormData({...formData, endDate: e.target.value})}
-                          placeholder="당일인 경우 비워둠"
-                          className="w-full p-2 bg-slate-900 border border-slate-700 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition-all text-xs sm:text-sm text-slate-200 shadow-inner"
+                          className="w-full p-1.5 bg-slate-900 border border-slate-700 rounded-lg focus:ring-1 focus:ring-blue-500 outline-none text-xs text-slate-200"
                           style={{ colorScheme: 'dark' }}
                         />
                       </div>
                     </div>
 
                     <div>
-                      <label className="block text-[11px] sm:text-xs font-medium text-slate-300 mb-1">구분</label>
-                      <div className="flex bg-slate-900 p-1 rounded-lg border border-slate-700 shadow-inner">
+                      <label className="block text-[10px] font-medium text-slate-300 mb-0.5">구분</label>
+                      <div className="flex bg-slate-900 p-0.5 rounded-lg border border-slate-700">
                         <button 
                           type="button" onClick={() => setFormData({...formData, type: 'work'})}
-                          className={`flex-1 py-1.5 text-xs font-bold rounded-md flex justify-center items-center gap-1 transition-all
-                            ${formData.type === 'work' ? 'bg-slate-700 shadow-sm text-blue-400 border border-slate-600' : 'text-slate-500 hover:text-slate-300'}`}
+                          className={`flex-1 py-1 text-[11px] font-bold rounded flex justify-center items-center gap-1
+                            ${formData.type === 'work' ? 'bg-slate-700 text-blue-400 border border-slate-600' : 'text-slate-500'}`}
                         >
-                          <i className="fa-solid fa-briefcase"></i> 업무
+                          <i className="fa-solid fa-briefcase text-[10px]"></i> 업무
                         </button>
                         <button 
                           type="button" onClick={() => setFormData({...formData, type: 'personal'})}
-                          className={`flex-1 py-1.5 text-xs font-bold rounded-md flex justify-center items-center gap-1 transition-all
-                            ${formData.type === 'personal' ? 'bg-slate-700 shadow-sm text-emerald-300 border border-slate-600' : 'text-slate-500 hover:text-slate-300'}`}
+                          className={`flex-1 py-1 text-[11px] font-bold rounded flex justify-center items-center gap-1
+                            ${formData.type === 'personal' ? 'bg-slate-700 text-emerald-300 border border-slate-600' : 'text-slate-500'}`}
                         >
-                          <i className="fa-solid fa-user"></i> 개인
+                          <i className="fa-solid fa-user text-[10px]"></i> 개인
                         </button>
                       </div>
                     </div>
 
                     <div>
-                      <label className="block text-[11px] sm:text-xs font-medium text-slate-300 mb-1">제목 (요약)</label>
+                      <label className="block text-[10px] font-medium text-slate-300 mb-0.5">제목</label>
                       <input 
                         type="text" required placeholder="예: 제주도 여행" value={formData.title}
                         onChange={e => setFormData({...formData, title: e.target.value})}
-                        className="w-full p-2.5 bg-slate-900 border border-slate-700 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition-all text-sm text-slate-200 placeholder-slate-600 shadow-inner"
+                        className="w-full p-2 bg-slate-900 border border-slate-700 rounded-lg focus:ring-1 focus:ring-blue-500 outline-none text-xs text-slate-200"
                       />
                     </div>
 
                     <div>
-                      <label className="block text-[11px] sm:text-xs font-medium text-slate-300 mb-1">상세 내용</label>
+                      <label className="block text-[10px] font-medium text-slate-300 mb-0.5">상세 내용</label>
                       <textarea 
-                        rows={3} placeholder="장소, 시간, 준비물 등" value={formData.description}
+                        rows={2} placeholder="내용 입력..." value={formData.description}
                         onChange={e => setFormData({...formData, description: e.target.value})}
-                        className="w-full p-2.5 bg-slate-900 border border-slate-700 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition-all resize-none text-xs sm:text-sm text-slate-200 placeholder-slate-600 shadow-inner"
+                        className="w-full p-2 bg-slate-900 border border-slate-700 rounded-lg focus:ring-1 focus:ring-blue-500 outline-none resize-none text-xs text-slate-200"
                       ></textarea>
                     </div>
 
-                    <div className="pt-3 mt-1 border-t border-slate-700 flex justify-between gap-2">
+                    <div className="pt-2 border-t border-slate-700 flex justify-between gap-2">
                       {formData.id && (
                         <button 
                           type="button" onClick={() => handleDeleteEvent(formData.id)} disabled={isSaving}
-                          className="px-3 py-2.5 bg-rose-950/40 text-rose-400 rounded-lg font-medium hover:bg-rose-900/60 transition-colors flex items-center justify-center shadow-sm border border-rose-900/50 disabled:opacity-50"
+                          className="px-2.5 py-2 bg-rose-950/40 text-rose-400 rounded-lg hover:bg-rose-900/60 text-xs border border-rose-900/50"
                         >
-                          <i className="fa-solid fa-trash text-sm"></i>
+                          <i className="fa-solid fa-trash"></i>
                         </button>
                       )}
-                      <div className="flex gap-2 flex-1">
+                      <div className="flex gap-1.5 flex-1">
                         <button 
                           type="button" onClick={() => setIsEventFormOpen(false)} disabled={isSaving}
-                          className="flex-1 px-4 py-2.5 bg-slate-700 text-slate-300 rounded-lg font-medium hover:bg-slate-600 hover:text-white transition-colors border border-slate-600 text-sm disabled:opacity-50"
+                          className="flex-1 px-3 py-2 bg-slate-700 text-slate-300 rounded-lg hover:bg-slate-600 text-xs border border-slate-600"
                         >취소</button>
                         <button 
                           type="submit" disabled={isSaving}
-                          className="flex-1 px-4 py-2.5 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-500 transition-colors shadow-sm text-sm disabled:opacity-50"
-                        >저장하기</button>
+                          className="flex-1 px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-500 text-xs shadow-sm"
+                        >저장</button>
                       </div>
                     </div>
                   </form>
@@ -637,34 +671,34 @@
             {/* 연도/월 선택 모달 */}
             {isDatePickerOpen && (
               <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[70] p-3 backdrop-blur-sm">
-                <div className="bg-slate-800 border border-slate-600 rounded-2xl shadow-2xl w-full max-w-xs overflow-hidden">
-                  <div className="flex items-center justify-between p-4 border-b border-slate-700 bg-slate-700/80">
-                    <h3 className="font-bold text-base text-white">날짜 이동</h3>
-                    <button onClick={() => setIsDatePickerOpen(false)} className="p-1.5 hover:bg-slate-600 rounded-full text-slate-400 hover:text-white transition-colors">
-                      <i className="fa-solid fa-xmark text-base"></i>
+                <div className="bg-slate-800 border border-slate-600 rounded-xl shadow-2xl w-full max-w-xs overflow-hidden">
+                  <div className="flex items-center justify-between px-3 py-2.5 border-b border-slate-700 bg-slate-700/80">
+                    <h3 className="font-bold text-sm text-white">날짜 이동</h3>
+                    <button onClick={() => setIsDatePickerOpen(false)} className="p-1 hover:bg-slate-600 rounded-full text-slate-400 transition-colors">
+                      <i className="fa-solid fa-xmark text-sm"></i>
                     </button>
                   </div>
                   
-                  <div className="p-4">
-                    <div className="flex items-center justify-between mb-4 bg-slate-900 border border-slate-700 p-2 rounded-xl shadow-inner">
-                      <button onClick={() => setPickerYear(prev => prev - 1)} className="p-2 hover:bg-slate-700 rounded-lg transition-colors text-slate-400 hover:text-white">
-                        <i className="fa-solid fa-chevron-left text-sm"></i>
+                  <div className="p-3">
+                    <div className="flex items-center justify-between mb-3 bg-slate-900 border border-slate-700 p-1.5 rounded-lg">
+                      <button onClick={() => setPickerYear(prev => prev - 1)} className="p-1 hover:bg-slate-700 rounded text-slate-400">
+                        <i className="fa-solid fa-chevron-left text-xs"></i>
                       </button>
-                      <span className="text-base font-bold text-white">{pickerYear}년</span>
-                      <button onClick={() => setPickerYear(prev => prev + 1)} className="p-2 hover:bg-slate-700 rounded-lg transition-colors text-slate-400 hover:text-white">
-                        <i className="fa-solid fa-chevron-right text-sm"></i>
+                      <span className="text-sm font-bold text-white">{pickerYear}년</span>
+                      <button onClick={() => setPickerYear(prev => prev + 1)} className="p-1 hover:bg-slate-700 rounded text-slate-400">
+                        <i className="fa-solid fa-chevron-right text-xs"></i>
                       </button>
                     </div>
                     
-                    <div className="grid grid-cols-4 gap-2">
+                    <div className="grid grid-cols-4 gap-1.5">
                       {Array.from({length: 12}, (_, i) => i + 1).map(month => {
                         const isSelected = pickerYear === currentYear && (month - 1) === currentMonth;
                         return (
                           <button
                             key={month}
                             onClick={() => { setCurrentDate(new Date(pickerYear, month - 1, 1)); setIsDatePickerOpen(false); }}
-                            className={`py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all
-                              ${isSelected ? 'bg-blue-600 text-white shadow-md scale-105' : 'bg-slate-700 border border-slate-600 text-slate-300 hover:bg-slate-600 hover:text-white'}`}
+                            className={`py-2 rounded-lg text-xs font-bold transition-all
+                              ${isSelected ? 'bg-blue-600 text-white shadow' : 'bg-slate-700 border border-slate-600 text-slate-300 hover:bg-slate-600'}`}
                           >
                             {month}월
                           </button>
@@ -673,11 +707,11 @@
                     </div>
                   </div>
                   
-                  <div className="p-3 border-t border-slate-700 bg-slate-700/50">
+                  <div className="p-2.5 border-t border-slate-700 bg-slate-700/50">
                     <button 
                       onClick={() => { setCurrentDate(new Date()); setIsDatePickerOpen(false); }}
-                      className="w-full bg-slate-700 border border-slate-600 text-slate-200 hover:bg-slate-600 hover:text-white py-2 rounded-lg font-medium transition-colors text-xs shadow-sm"
-                    >오늘 날짜로 돌아가기</button>
+                      className="w-full bg-slate-700 border border-slate-600 text-slate-200 hover:bg-slate-600 py-1.5 rounded-lg text-[11px] font-medium"
+                    >오늘 날짜로</button>
                   </div>
                 </div>
               </div>
