@@ -8,9 +8,6 @@
   <!-- Tailwind CSS -->
   <script src="https://cdn.tailwindcss.com"></script>
   
-  <!-- Lucide Icons -->
-  <script src="https://unpkg.com/lucide@latest"></script>
-  
   <!-- React & ReactDOM -->
   <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
   <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
@@ -37,10 +34,10 @@
   <script type="text/babel">
     const { useState, useMemo, useEffect } = React;
     
-    // Google Apps Script Web App URL
+    // 💡 사용자의 최신 구글 앱스 스크립트 웹 앱 URL 고정
     const API_URL = 'https://script.google.com/macros/s/AKfycbwG-JOdmTz27GORlmcGexXUQBf59MxRTgH_cIvFqRt_ybBpbJfQ-8EWjHXFOGvpEr1g-Q/exec';
 
-    // 10-year official Korean holidays (2024 ~ 2034)
+    // 10년치 대한민국 공휴일 (2024 ~ 2034)
     const KOREAN_HOLIDAYS = {
       "2024-01-01": "신정", "2024-02-09": "설날 연휴", "2024-02-10": "설날", "2024-02-11": "설날 연휴", "2024-02-12": "대체공휴일",
       "2024-03-01": "3·1절", "2024-04-10": "국회의원선거", "2024-05-05": "어린이날", "2024-05-06": "대체공휴일", "2024-05-15": "부처님오신날",
@@ -82,6 +79,19 @@
       "2034-01-01": "신정", "2034-03-01": "3·1절", "2034-05-05": "어린이날", "2034-06-06": "현충일", "2034-08-15": "광복절", "2034-10-03": "개천절", "2034-10-09": "한글날", "2034-12-25": "기독탄신일"
     };
 
+    const IconLock = () => <svg className="w-7 h-7" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>;
+    const IconDelete = () => <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M21 4H8l-7 8 7 8h13a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2z"/><line x1="18" y1="9" x2="12" y2="15"/><line x1="12" y1="9" x2="18" y2="15"/></svg>;
+    const IconChevronLeft = () => <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg>;
+    const IconChevronRight = () => <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg>;
+    const IconRefresh = () => <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.2" viewBox="0 0 24 24"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.65-5.65"/></svg>;
+    const IconSearch = () => <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>;
+    const IconPlus = () => <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>;
+    const IconX = () => <svg className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>;
+    const IconEdit = () => <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>;
+    const IconTrash = () => <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>;
+    const IconBriefcase = () => <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><rect width="20" height="14" x="2" y="7" rx="2" ry="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>;
+    const IconUser = () => <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>;
+
     function App() {
       // PIN Authentication (1017)
       const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -91,7 +101,7 @@
       const [currentDate, setCurrentDate] = useState(new Date()); 
       const [events, setEvents] = useState(() => {
         try {
-          const cached = localStorage.getItem('my_calendar_events_v10');
+          const cached = localStorage.getItem('my_calendar_events_v12');
           return cached ? JSON.parse(cached) : [];
         } catch(e) {
           return [];
@@ -125,7 +135,7 @@
           const data = await response.json();
           if (data && data.status === 'success' && Array.isArray(data.events)) {
             setEvents(data.events);
-            localStorage.setItem('my_calendar_events_v10', JSON.stringify(data.events));
+            localStorage.setItem('my_calendar_events_v12', JSON.stringify(data.events));
             
             if (selectedDateDetails) {
               const freshEvents = data.events.filter(e => isDateInRange(selectedDateDetails.dateStr, e.startDate, e.endDate));
@@ -150,6 +160,9 @@
         if (pin.length < 4) {
           const newPin = [...pin, num];
           setPin(newPin);
+          if (newPin.length === 3) { // 4번째 숫자 입력 시점
+            // check
+          }
           if (newPin.length === 4) {
             const entered = newPin.join('');
             if (entered === '1017') {
@@ -373,7 +386,7 @@
           <div className="h-[100dvh] w-screen bg-slate-950 text-slate-200 flex flex-col items-center justify-between p-6 select-none overflow-hidden">
             <div className="flex-1 flex flex-col items-center justify-center w-full max-w-xs">
               <div className="w-16 h-16 bg-indigo-600/20 border border-indigo-500/30 text-indigo-400 rounded-2xl flex items-center justify-center mb-4 shadow-xl">
-                <i data-lucide="lock" className="w-8 h-8"></i>
+                <IconLock />
               </div>
               <h2 className="text-xl font-bold text-white mb-1">내 개인 달력</h2>
               <p className="text-xs text-slate-400 mb-8 text-center">보안을 위해 4자리 비밀번호를 입력해주세요</p>
@@ -418,7 +431,7 @@
                 onClick={handlePinDelete}
                 className="h-16 bg-slate-900/50 hover:bg-slate-800 active:bg-slate-700 border border-slate-900 rounded-2xl text-xl text-slate-300 transition-all flex items-center justify-center"
               >
-                <i data-lucide="delete" className="w-5 h-5"></i>
+                <IconDelete />
               </button>
             </div>
           </div>
@@ -432,57 +445,68 @@
             {syncError && (
               <div className="bg-rose-900/90 text-white text-xs px-3 py-1 flex items-center justify-between shrink-0">
                 <span>{syncError}</span>
-                <button onClick={() => setSyncError(null)} className="hover:text-rose-200"><i data-lucide="x" className="w-3.5 h-3.5"></i></button>
+                <button onClick={() => setSyncError(null)} className="hover:text-rose-200"><IconX /></button>
               </div>
             )}
 
-            {/* Header Bar - Clean reference style */}
-            <div className="flex items-center justify-between px-4 py-3 border-b border-slate-800 shrink-0 bg-slate-900">
-              <div className="flex items-center gap-2">
+            {/* Header Bar - Restored Month/Year, Arrows, Sync, Search, Add */}
+            <div className="flex flex-col sm:flex-row items-center justify-between px-4 py-3 border-b border-slate-800 shrink-0 bg-slate-900 gap-2">
+              <div className="flex items-center justify-between w-full sm:w-auto">
                 <h2 
                   onClick={() => { setPickerYear(currentYear); setIsDatePickerOpen(true); }}
-                  className="text-2xl sm:text-3xl font-black text-white tracking-tight cursor-pointer hover:opacity-80 transition-opacity flex items-center gap-1.5"
+                  className="text-2xl sm:text-3xl font-black text-white tracking-tight cursor-pointer hover:opacity-80 transition-opacity flex items-center gap-2"
                 >
                   <span>{currentMonth + 1}월</span>
                   <span className="text-slate-400 text-lg font-normal">({currentYear})</span>
                 </h2>
                 
-                <div className="flex items-center gap-1 ml-1">
-                  <button onClick={prevMonth} className="p-1 bg-slate-800 hover:bg-slate-700 rounded-lg text-slate-300 transition-colors">
-                    <i data-lucide="chevron-left" className="w-4 h-4"></i>
+                <div className="flex items-center gap-1 ml-2">
+                  <button onClick={prevMonth} className="p-1.5 bg-slate-800 hover:bg-slate-700 rounded-xl text-slate-300 transition-colors">
+                    <IconChevronLeft />
                   </button>
-                  <button onClick={nextMonth} className="p-1 bg-slate-800 hover:bg-slate-700 rounded-lg text-slate-300 transition-colors">
-                    <i data-lucide="chevron-right" className="w-4 h-4"></i>
+                  <button onClick={nextMonth} className="p-1.5 bg-slate-800 hover:bg-slate-700 rounded-xl text-slate-300 transition-colors">
+                    <IconChevronRight />
                   </button>
                 </div>
               </div>
 
-              <div className="flex items-center gap-1.5">
+              <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
                 {isLoading ? (
-                   <div className="text-slate-400 text-xs flex items-center px-1">
-                     <i data-lucide="loader-2" className="w-4 h-4 animate-spin"></i>
+                   <div className="text-slate-400 text-xs flex items-center px-2">
+                     <span className="animate-spin mr-1">⏳</span> 동기화중...
                    </div>
                 ) : (
-                   <button onClick={fetchCalendarData} className="p-2 text-slate-400 hover:text-white bg-slate-800 hover:bg-slate-700 rounded-xl transition-colors" title="새로고침">
-                     <i data-lucide="rotate-cw" className="w-3.5 h-3.5"></i>
+                   <button onClick={fetchCalendarData} className="p-2 text-slate-300 hover:text-white bg-slate-800 hover:bg-slate-700 rounded-xl transition-colors" title="새로고침">
+                     <IconRefresh />
                    </button>
                 )}
                 
+                <div className="relative flex-1 sm:w-40">
+                  <input 
+                    type="text" 
+                    placeholder="검색..." 
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="w-full pl-8 pr-2 py-1.5 bg-slate-950 border border-slate-800 rounded-xl text-xs text-slate-200 placeholder-slate-500 outline-none focus:border-blue-500"
+                  />
+                  <span className="absolute left-2.5 top-2 text-slate-500"><IconSearch /></span>
+                </div>
+
                 <button 
                   onClick={() => {
                     const todayStr = formatDate(currentYear, currentMonth, new Date().getDate());
                     setFormData({ id: null, startDate: todayStr, endDate: todayStr, type: 'personal', title: '', description: '' });
                     setIsEventFormOpen(true);
                   }}
-                  className="bg-blue-600 hover:bg-blue-500 text-white px-3 py-1.5 rounded-xl flex items-center gap-1 transition-colors font-semibold text-xs shadow-sm"
+                  className="bg-blue-600 hover:bg-blue-500 text-white px-3 py-1.5 rounded-xl flex items-center gap-1 transition-colors font-semibold text-xs shadow-sm whitespace-nowrap"
                 >
-                  <i data-lucide="plus" className="w-3.5 h-3.5"></i>
+                  <IconPlus />
                   <span>추가</span>
                 </button>
               </div>
             </div>
 
-            {/* Calendar Grid Container (Borderless rows style) */}
+            {/* Calendar Grid Container (Borderless row style) */}
             <div className="p-2 flex-1 flex flex-col overflow-hidden">
               <div className="grid grid-cols-7 mb-1 shrink-0 border-b border-slate-800 pb-1">
                 {['일', '월', '화', '수', '목', '금', '토'].map((day, i) => (
@@ -493,12 +517,29 @@
                 ))}
               </div>
               
-              <div className="flex-1 flex flex-col overflow-hidden bg-slate-900">
-                {renderCalendarRows()}
-              </div>
+              {searchQuery.trim() ? (
+                <div className="p-4 overflow-y-auto flex-1 space-y-2">
+                  <h3 className="text-xs font-bold text-slate-400 mb-2">검색 결과 ({filteredSearchEvents.length}건)</h3>
+                  {filteredSearchEvents.map(evt => (
+                    <div key={evt.id} onClick={() => handleEditEvent(evt)} className="bg-slate-800 p-3 rounded-xl border border-slate-700 cursor-pointer hover:bg-slate-750">
+                      <div className="flex justify-between items-center text-xs text-slate-400 mb-1">
+                        <span>{evt.startDate} {evt.endDate !== evt.startDate ? `~ ${evt.endDate}` : ''}</span>
+                        <span className={`px-2 py-0.5 rounded font-bold ${evt.type === 'work' ? 'bg-blue-500/20 text-blue-300' : 'bg-emerald-500/20 text-emerald-300'}`}>
+                          {evt.type === 'work' ? '업무' : '개인'}
+                        </span>
+                      </div>
+                      <div className="font-bold text-white text-sm">{evt.title}</div>
+                      {evt.description && <div className="text-xs text-slate-300 mt-1">{evt.description}</div>}
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="flex-1 flex flex-col overflow-hidden bg-slate-900">
+                  {renderCalendarRows()}
+                </div>
+              )}
             </div>
 
-            {/* Date Details Modal */}
             {selectedDateDetails && (
               <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
                 <div className="bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden flex flex-col max-h-[75vh]">
@@ -507,8 +548,12 @@
                       <span className="bg-slate-950 px-2 py-0.5 rounded border border-slate-800 text-blue-400 text-xs">{selectedDateDetails.day}일</span>
                       <span className="text-slate-300 text-xs font-normal">{currentYear}년 {currentMonth + 1}월</span>
                     </h3>
-                    <button onClick={() => setSelectedDateDetails(null)} className="p-1.5 hover:bg-slate-700 rounded-full text-slate-400 hover:text-white transition-colors">
-                      <i data-lucide="x" className="w-4 h-4"></i>
+                    <button 
+                      onClick={() => setSelectedDateDetails(null)} 
+                      className="w-8 h-8 flex items-center justify-center bg-slate-700 hover:bg-slate-600 rounded-full text-white transition-colors cursor-pointer shadow-md"
+                      title="닫기"
+                    >
+                      <IconX />
                     </button>
                   </div>
                   
@@ -531,9 +576,9 @@
                             </div>
                             <button 
                               onClick={(e) => { e.stopPropagation(); handleEditEvent(evt); }}
-                              className="text-slate-400 hover:text-blue-400 p-1.5 rounded-lg transition-colors text-xs"
+                              className="text-slate-400 hover:text-blue-400 p-1.5 rounded-lg transition-colors text-xs flex items-center gap-1 bg-slate-700/50"
                             >
-                              <i data-lucide="pen" className="w-3.5 h-3.5"></i>
+                              <IconEdit /> 수정
                             </button>
                           </div>
                           {evt.description && (
@@ -554,29 +599,32 @@
                       }}
                       className="w-full bg-slate-800 border border-slate-700 text-blue-400 hover:bg-slate-700 py-2 rounded-xl font-semibold transition-colors text-xs flex items-center justify-center gap-1.5 shadow-sm"
                     >
-                      <i data-lucide="plus" className="w-3.5 h-3.5"></i> 이 날짜에 일정 추가
+                      <IconPlus /> 이 날짜에 일정 추가
                     </button>
                   </div>
                 </div>
               </div>
             )}
 
-            {/* Event Add/Edit Modal (with multi-day support) */}
             {isEventFormOpen && (
               <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-[60] p-4 backdrop-blur-sm">
                 <div className="bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden relative">
                   
                   {isSaving && (
                     <div className="absolute inset-0 bg-slate-950/80 z-10 flex flex-col items-center justify-center backdrop-blur-sm">
-                      <i data-lucide="loader-2" className="w-6 h-6 animate-spin text-blue-500 mb-2"></i>
+                      <span className="text-lg animate-spin mb-2">⏳</span>
                       <span className="text-xs font-semibold text-white">저장 중...</span>
                     </div>
                   )}
 
                   <div className="flex items-center justify-between px-4 py-3 border-b border-slate-800 bg-slate-800/80">
                     <h3 className="font-bold text-sm text-white">{formData.id ? '일정 수정' : '새 일정 추가'}</h3>
-                    <button onClick={() => !isSaving && setIsEventFormOpen(false)} className="p-1.5 hover:bg-slate-700 rounded-full text-slate-400 hover:text-white transition-colors">
-                      <i data-lucide="x" className="w-4 h-4"></i>
+                    <button 
+                      onClick={() => !isSaving && setIsEventFormOpen(false)} 
+                      className="w-8 h-8 flex items-center justify-center bg-slate-700 hover:bg-slate-600 rounded-full text-white transition-colors cursor-pointer shadow-md"
+                      title="닫기"
+                    >
+                      <IconX />
                     </button>
                   </div>
                   
@@ -610,14 +658,14 @@
                           className={`flex-1 py-1.5 text-xs font-bold rounded-lg flex justify-center items-center gap-1.5
                             ${formData.type === 'work' ? 'bg-slate-800 text-blue-400 border border-slate-700 shadow-sm' : 'text-slate-400'}`}
                         >
-                          <i data-lucide="briefcase" className="w-3.5 h-3.5"></i> 업무
+                          <IconBriefcase /> 업무
                         </button>
                         <button 
                           type="button" onClick={() => setFormData({...formData, type: 'personal'})}
                           className={`flex-1 py-1.5 text-xs font-bold rounded-lg flex justify-center items-center gap-1.5
                             ${formData.type === 'personal' ? 'bg-slate-800 text-emerald-300 border border-slate-700 shadow-sm' : 'text-slate-400'}`}
                         >
-                          <i data-lucide="user" className="w-3.5 h-3.5"></i> 개인
+                          <IconUser /> 개인
                         </button>
                       </div>
                     </div>
@@ -644,9 +692,9 @@
                       {formData.id && (
                         <button 
                           type="button" onClick={() => handleDeleteEvent(formData.id)} disabled={isSaving}
-                          className="px-3 py-2 bg-rose-950/40 text-rose-400 rounded-xl hover:bg-rose-900/60 text-xs border border-rose-900/50 font-semibold"
+                          className="px-3 py-2 bg-rose-950/40 text-rose-400 rounded-xl hover:bg-rose-900/60 text-xs border border-rose-900/50 font-semibold flex items-center gap-1"
                         >
-                          <i data-lucide="trash" className="w-3.5 h-3.5"></i>
+                          <IconTrash /> 삭제
                         </button>
                       )}
                       <div className="flex gap-2 flex-1">
@@ -665,25 +713,28 @@
               </div>
             )}
 
-            {/* Year/Month Picker Modal */}
             {isDatePickerOpen && (
               <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-[70] p-4 backdrop-blur-sm">
                 <div className="bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl w-full max-w-xs overflow-hidden">
                   <div className="flex items-center justify-between px-4 py-3 border-b border-slate-800 bg-slate-800/80">
                     <h3 className="font-bold text-sm text-white">날짜 이동</h3>
-                    <button onClick={() => setIsDatePickerOpen(false)} className="p-1.5 hover:bg-slate-700 rounded-full text-slate-400 transition-colors">
-                      <i data-lucide="x" className="w-4 h-4"></i>
+                    <button 
+                      onClick={() => setIsDatePickerOpen(false)} 
+                      className="w-8 h-8 flex items-center justify-center bg-slate-700 hover:bg-slate-600 rounded-full text-white transition-colors cursor-pointer shadow-md"
+                      title="닫기"
+                    >
+                      <IconX />
                     </button>
                   </div>
                   
                   <div className="p-4">
                     <div className="flex items-center justify-between mb-3 bg-slate-950 border border-slate-800 p-1.5 rounded-xl">
                       <button onClick={() => setPickerYear(prev => prev - 1)} className="p-1.5 hover:bg-slate-800 rounded-lg text-slate-400">
-                        <i data-lucide="chevron-left" className="w-4 h-4"></i>
+                        <IconChevronLeft />
                       </button>
                       <span className="text-sm font-bold text-white">{pickerYear}년</span>
                       <button onClick={() => setPickerYear(prev => prev + 1)} className="p-1.5 hover:bg-slate-800 rounded-lg text-slate-400">
-                        <i data-lucide="chevron-right" className="w-4 h-4"></i>
+                        <IconChevronRight />
                       </button>
                     </div>
                     
@@ -720,11 +771,6 @@
 
     const root = ReactDOM.createRoot(document.getElementById('root'));
     root.render(<App />);
-    setTimeout(() => {
-      if (window.lucide) {
-        window.lucide.createIcons();
-      }
-    }, 100);
   </script>
 </body>
 </html>
