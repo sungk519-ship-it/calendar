@@ -37,53 +37,44 @@
   <script type="text/babel">
     const { useState, useMemo, useEffect } = React;
     
-    // 🚀 본인의 구글 앱스 스크립트 웹 앱 URL 입력
     const API_URL = 'https://script.google.com/macros/s/AKfycbxEL2aXPSTVgllpUspgW6_nx0OaU3H1wO-TpavsziU9NiRggjyQKnhkJp5Oo336FE9U/exec';
 
-    // 🌟 10년치 대한민국 공식 공휴일 데이터 내장 (2024 ~ 2034) - 0.1초 즉시 로딩!
+    // 🌟 10년치 대한민국 공식 공휴일 데이터 내장 (2024 ~ 2034) - 0.1초 즉시 로딩 보장!
     const KOREAN_HOLIDAYS = {
-      // 2024년
       "2024-01-01": "신정", "2024-02-09": "설날 연휴", "2024-02-10": "설날", "2024-02-11": "설날 연휴", "2024-02-12": "대체공휴일",
       "2024-03-01": "3·1절", "2024-04-10": "국회의원선거", "2024-05-05": "어린이날", "2024-05-06": "대체공휴일", "2024-05-15": "부처님오신날",
       "2024-06-06": "현충일", "2024-08-15": "광복절", "2024-09-16": "추석 연휴", "2024-09-17": "추석", "2024-09-18": "추석 연휴",
       "2024-10-03": "개천절", "2024-10-09": "한글날", "2024-12-25": "기독탄신일",
 
-      // 2025년
       "2025-01-01": "신정", "2025-01-28": "설날 연휴", "2025-01-29": "설날", "2025-01-30": "설날 연휴",
       "2025-03-01": "3·1절", "2025-03-03": "대체공휴일", "2025-05-05": "어린이날, 부처님오신날", "2025-05-06": "대체공휴일",
       "2025-06-06": "현충일", "2025-08-15": "광복절", "2025-10-05": "추석 연휴", "2025-10-06": "추석", "2025-10-07": "추석 연휴", "2025-10-08": "대체공휴일",
       "2025-10-03": "개천절", "2025-10-09": "한글날", "2025-12-25": "기독탄신일",
 
-      // 2026년
       "2026-01-01": "신정", "2026-02-16": "설날 연휴", "2026-02-17": "설날", "2026-02-18": "설날 연휴",
       "2026-03-01": "3·1절", "2026-03-02": "대체공휴일", "2026-05-05": "어린이날", "2026-05-24": "부처님오신날", "2026-05-25": "대체공휴일",
       "2026-06-06": "현충일", "2026-08-15": "광복절", "2026-08-17": "대체공휴일", "2026-09-24": "추석 연휴", "2026-09-25": "추석", "2026-09-26": "추석 연휴",
       "2026-10-03": "개천절", "2026-10-05": "대체공휴일", "2026-10-09": "한글날", "2026-12-25": "기독탄신일",
 
-      // 2027년
       "2027-01-01": "신정", "2027-02-06": "설날 연휴", "2027-02-07": "설날", "2027-02-08": "설날 연휴", "2027-02-09": "대체공휴일",
       "2027-03-01": "3·1절", "2027-05-05": "어린이날", "2027-05-13": "부처님오신날", "2027-06-06": "현충일", "2027-06-07": "대체공휴일",
       "2027-08-15": "광복절", "2027-08-16": "대체공휴일", "2027-09-14": "추석 연휴", "2027-09-15": "추석", "2027-09-16": "추석 연휴",
       "2027-10-03": "개천절", "2027-10-04": "대체공휴일", "2027-10-09": "한글날", "2027-12-25": "기독탄신일",
 
-      // 2028년
       "2028-01-01": "신정", "2028-01-26": "설날 연휴", "2028-01-27": "설날", "2028-01-28": "설날 연휴",
       "2028-03-01": "3·1절", "2028-05-02": "부처님오신날", "2028-05-05": "어린이날", "2028-06-06": "현충일", "2028-08-15": "광복절",
       "2028-10-02": "추석 연휴", "2028-10-03": "개천절, 추석", "2028-10-04": "추석 연휴", "2028-10-05": "대체공휴일", "2028-10-09": "한글날", "2028-12-25": "기독탄신일",
 
-      // 2029년
       "2029-01-01": "신정", "2029-02-12": "설날 연휴", "2029-02-13": "설날", "2029-02-14": "설날 연휴",
       "2029-03-01": "3·1절", "2029-05-05": "어린이날", "2029-05-07": "대체공휴일", "2029-05-20": "부처님오신날", "2029-05-21": "대체공휴일",
       "2029-06-06": "현충일", "2029-08-15": "광복절", "2029-09-21": "추석 연휴", "2029-09-22": "추석", "2029-09-23": "추석 연휴", "2029-09-24": "대체공휴일",
       "2029-10-03": "개천절", "2029-10-09": "한글날", "2029-12-25": "기독탄신일",
 
-      // 2030년
       "2030-01-01": "신정", "2030-02-01": "설날 연휴", "2030-02-02": "설날", "2030-02-03": "설날 연휴", "2030-02-04": "대체공휴일",
       "2030-03-01": "3·1절", "2030-05-05": "어린이날", "2030-05-06": "대체공휴일", "2030-05-09": "부처님오신날",
       "2030-06-06": "현충일", "2030-08-15": "광복절", "2030-09-11": "추석 연휴", "2030-09-12": "추석", "2030-09-13": "추석 연휴",
       "2030-10-03": "개천절", "2030-10-09": "한글날", "2030-12-25": "기독탄신일",
 
-      // 2031년 ~ 2034년 주요 고정 휴일 및 추정치
       "2031-01-01": "신정", "2031-03-01": "3·1절", "2031-05-05": "어린이날", "2031-06-06": "현충일", "2031-08-15": "광복절", "2031-10-03": "개천절", "2031-10-09": "한글날", "2031-12-25": "기독탄신일",
       "2032-01-01": "신정", "2032-03-01": "3·1절", "2032-05-05": "어린이날", "2032-06-06": "현충일", "2032-08-15": "광복절", "2032-10-03": "개천절", "2032-10-09": "한글날", "2032-12-25": "기독탄신일",
       "2033-01-01": "신정", "2033-03-01": "3·1절", "2033-05-05": "어린이날", "2033-06-06": "현충일", "2033-08-15": "광복절", "2033-10-03": "개천절", "2033-10-09": "한글날", "2033-12-25": "기독탄신일",
@@ -92,9 +83,16 @@
 
     function App() {
       const [currentDate, setCurrentDate] = useState(new Date()); 
-      const [events, setEvents] = useState([]);
+      const [events, setEvents] = useState(() => {
+        try {
+          const cached = localStorage.getItem('my_calendar_events');
+          return cached ? JSON.parse(cached) : [];
+        } catch(e) {
+          return [];
+        }
+      });
       
-      const [isLoading, setIsLoading] = useState(true);
+      const [isLoading, setIsLoading] = useState(false);
       const [isSaving, setIsSaving] = useState(false);
       const [syncError, setSyncError] = useState(null);
 
@@ -108,16 +106,20 @@
       const currentYear = currentDate.getFullYear();
       const currentMonth = currentDate.getMonth();
 
+      // 💡 데이터 동기화 함수 (안전장치 강화: 통신 실패 시 기존 일정 유지)
       const fetchCalendarData = async () => {
         setIsLoading(true);
         setSyncError(null);
         try {
           const response = await fetch(API_URL);
           const data = await response.json();
-          setEvents(data.events || []);
+          if (data && Array.isArray(data.events)) {
+            setEvents(data.events);
+            localStorage.setItem('my_calendar_events', JSON.stringify(data.events));
+          }
         } catch (error) {
           console.error("데이터 동기화 실패:", error);
-          setSyncError("데이터를 불러오지 못했습니다. 인터넷 연결을 확인해주세요.");
+          setSyncError("서버 연결이 원활하지 않아 저장된 오프라인 데이터를 표시합니다.");
         } finally {
           setIsLoading(false);
         }
@@ -159,25 +161,21 @@
           const result = await response.json();
 
           if (result.status === 'success') {
+            let updatedEvents = [];
             if (isEdit) {
-              const updatedEvents = events.map(evt => evt.id === formData.id ? { ...formData } : evt);
-              setEvents(updatedEvents);
-              if (selectedDateDetails && selectedDateDetails.dateStr === formData.date) {
-                setSelectedDateDetails({
-                  ...selectedDateDetails,
-                  events: updatedEvents.filter(evt => evt.date === formData.date)
-                });
-              }
+              updatedEvents = events.map(evt => evt.id === formData.id ? { ...formData } : evt);
             } else {
-              const newEvent = { ...formData, id: result.id }; 
-              const updatedEvents = [...events, newEvent];
-              setEvents(updatedEvents);
-              if (selectedDateDetails && selectedDateDetails.dateStr === formData.date) {
-                setSelectedDateDetails({
-                    ...selectedDateDetails,
-                    events: [...selectedDateDetails.events, newEvent]
-                });
-              }
+              const newEvent = { ...formData, id: result.id || new Date().getTime().toString() }; 
+              updatedEvents = [...events, newEvent];
+            }
+            setEvents(updatedEvents);
+            localStorage.setItem('my_calendar_events', JSON.stringify(updatedEvents));
+
+            if (selectedDateDetails && selectedDateDetails.dateStr === formData.date) {
+              setSelectedDateDetails({
+                ...selectedDateDetails,
+                events: updatedEvents.filter(evt => evt.date === formData.date)
+              });
             }
             setIsEventFormOpen(false);
             setFormData({ id: null, date: '', type: 'work', title: '', description: '' });
@@ -206,6 +204,7 @@
           if (result.status === 'success') {
             const filteredEvents = events.filter(e => e.id !== id);
             setEvents(filteredEvents);
+            localStorage.setItem('my_calendar_events', JSON.stringify(filteredEvents));
             setIsEventFormOpen(false);
             if (selectedDateDetails) {
                 setSelectedDateDetails({
