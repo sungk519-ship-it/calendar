@@ -1,0 +1,621 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>내 개인 달력</title>
+  
+  <!-- Tailwind CSS (디자인) -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  
+  <!-- FontAwesome (아이콘) -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  
+  <!-- React & ReactDOM -->
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+  
+  <!-- Babel (React 코드를 브라우저가 읽을 수 있게 번역) -->
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  
+  <style>
+    /* 스크롤바 숨기기 등 커스텀 CSS */
+    .no-scrollbar::-webkit-scrollbar {
+      display: none;
+    }
+    .no-scrollbar {
+      -ms-overflow-style: none;
+      scrollbar-width: none;
+    }
+    input[type="date"]::-webkit-calendar-picker-indicator {
+      filter: invert(1);
+    }
+  </style>
+</head>
+<body class="bg-slate-900 text-slate-200 font-sans">
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useState, useMemo, useEffect } = React;
+    
+    // 사용자님의 구글 앱스 스크립트 웹 앱 URL
+    const API_URL = 'https://script.google.com/macros/s/AKfycbxEL2aXPSTVgllpUspgW6_nx0OaU3H1wO-TpavsziU9NiRggjyQKnhkJp5Oo336FE9U/exec';
+
+    function App() {
+      const [currentDate, setCurrentDate] = useState(new Date()); 
+      
+      const [events, setEvents] = useState([]);
+      const [holidays, setHolidays] = useState({});
+      
+      const [isLoading, setIsLoading] = useState(true);
+      const [isSaving, setIsSaving] = useState(false);
+      const [syncError, setSyncError] = useState(null);
+
+      const [searchQuery, setSearchQuery] = useState('');
+      const [selectedDateDetails, setSelectedDateDetails] = useState(null); 
+      const [isEventFormOpen, setIsEventFormOpen] = useState(false); 
+      const [isDatePickerOpen, setIsDatePickerOpen] = useState(false);
+      const [pickerYear, setPickerYear] = useState(currentDate.getFullYear());
+      const [formData, setFormData] = useState({ id: null, date: '', type: 'work', title: '', description: '' });
+
+      const currentYear = currentDate.getFullYear();
+      const currentMonth = currentDate.getMonth();
+
+      const fetchCalendarData = async () => {
+        setIsLoading(true);
+        setSyncError(null);
+        try {
+          const response = await fetch(API_URL);
+          const data = await response.json();
+          setEvents(data.events || []);
+          setHolidays(data.holidays || {});
+        } catch (error) {
+          console.error("데이터 동기화 실패:", error);
+          setSyncError("데이터를 불러오지 못했습니다. 인터넷 연결을 확인해주세요.");
+        } finally {
+          setIsLoading(false);
+        }
+      };
+
+      useEffect(() => {
+        fetchCalendarData();
+      }, []);
+
+      const getDaysInMonth = (year, month) => new Date(year, month + 1, 0).getDate();
+      const getFirstDayOfMonth = (year, month) => new Date(year, month, 1).getDay();
+      
+      const formatDate = (year, month, day) => {
+        return `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+      };
+
+      const getHolidayName = (dateStr) => holidays[dateStr] || null;
+
+      const nextMonth = () => setCurrentDate(new Date(currentYear, currentMonth + 1, 1));
+      const prevMonth = () => setCurrentDate(new Date(currentYear, currentMonth - 1, 1));
+
+      const getEventsForDate = (dateStr) => events.filter(e => e.date === dateStr);
+
+      const handleSaveEvent = async (e) => {
+        e.preventDefault();
+        if (!formData.title.trim() || !formData.date) return;
+        
+        setIsSaving(true);
+        const isEdit = !!formData.id;
+        const action = isEdit ? 'update' : 'create';
+        const payload = { action, data: formData };
+
+        try {
+          const response = await fetch(API_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+            body: JSON.stringify(payload)
+          });
+          const result = await response.json();
+
+          if (result.status === 'success') {
+            if (isEdit) {
+              const updatedEvents = events.map(evt => evt.id === formData.id ? { ...formData } : evt);
+              setEvents(updatedEvents);
+              if (selectedDateDetails && selectedDateDetails.dateStr === formData.date) {
+                setSelectedDateDetails({
+                  ...selectedDateDetails,
+                  events: updatedEvents.filter(evt => evt.date === formData.date)
+                });
+              }
+            } else {
+              const newEvent = { ...formData, id: result.id }; 
+              const updatedEvents = [...events, newEvent];
+              setEvents(updatedEvents);
+              if (selectedDateDetails && selectedDateDetails.dateStr === formData.date) {
+                setSelectedDateDetails({
+                    ...selectedDateDetails,
+                    events: [...selectedDateDetails.events, newEvent]
+                });
+              }
+            }
+            setIsEventFormOpen(false);
+            setFormData({ id: null, date: '', type: 'work', title: '', description: '' });
+          } else {
+            setSyncError("저장에 실패했습니다.");
+          }
+        } catch (error) {
+          console.error("저장 오류:", error);
+          setSyncError("서버와 통신하는 중 오류가 발생했습니다.");
+        } finally {
+          setIsSaving(false);
+        }
+      };
+
+      const handleDeleteEvent = async (id) => {
+        setIsSaving(true);
+        try {
+          const payload = { action: 'delete', data: { id } };
+          const response = await fetch(API_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+            body: JSON.stringify(payload)
+          });
+          const result = await response.json();
+
+          if (result.status === 'success') {
+            const filteredEvents = events.filter(e => e.id !== id);
+            setEvents(filteredEvents);
+            setIsEventFormOpen(false);
+            if (selectedDateDetails) {
+                setSelectedDateDetails({
+                    ...selectedDateDetails,
+                    events: filteredEvents.filter(e => e.date === selectedDateDetails.dateStr)
+                });
+            }
+          }
+        } catch (error) {
+          setSyncError("삭제 중 오류가 발생했습니다.");
+        } finally {
+          setIsSaving(false);
+        }
+      };
+
+      const handleEditEvent = (evt) => {
+        setFormData(evt); 
+        setIsEventFormOpen(true);
+      };
+
+      const filteredSearchEvents = useMemo(() => {
+        if (!searchQuery.trim()) return [];
+        const lowerQuery = searchQuery.toLowerCase();
+        return events.filter(evt => 
+          evt.title.toLowerCase().includes(lowerQuery) || 
+          evt.description.toLowerCase().includes(lowerQuery)
+        ).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+      }, [searchQuery, events]);
+
+      const renderCalendar = () => {
+        const daysInMonth = getDaysInMonth(currentYear, currentMonth);
+        const firstDay = getFirstDayOfMonth(currentYear, currentMonth);
+        const prevMonthDays = getDaysInMonth(currentYear, currentMonth - 1);
+        const days = [];
+
+        const renderDayCell = (year, month, day, isCurrentMonth) => {
+          const dateStr = formatDate(year, month, day);
+          const dayEvents = getEventsForDate(dateStr);
+          
+          const today = new Date();
+          const isToday = dateStr === formatDate(today.getFullYear(), today.getMonth(), today.getDate());
+          
+          const dayOfWeek = new Date(year, month, day).getDay();
+          const isSunday = dayOfWeek === 0;
+          const isSaturday = dayOfWeek === 6;
+          
+          const holidayName = getHolidayName(dateStr);
+          const isHoliday = !!holidayName;
+          const isRedDay = isSunday || isHoliday;
+
+          let dateTextColor = isCurrentMonth ? 'text-slate-200' : 'text-slate-500/50';
+          if (isRedDay) {
+            dateTextColor = isCurrentMonth ? 'text-rose-400 font-bold' : 'text-rose-900/60 font-medium';
+          } else if (isSaturday) {
+            dateTextColor = isCurrentMonth ? 'text-blue-400 font-bold' : 'text-blue-900/60 font-medium';
+          }
+
+          let bgColor = isCurrentMonth ? 'bg-slate-800' : 'bg-slate-800/40';
+          if (isCurrentMonth && isRedDay) bgColor = 'bg-rose-950/20';
+          if (!isCurrentMonth && isRedDay) bgColor = 'bg-rose-950/10';
+          
+          let ringStyle = isToday ? 'ring-2 ring-blue-500 ring-inset z-10' : '';
+
+          return (
+            <div 
+              key={`${year}-${month}-${day}`} 
+              onClick={() => setSelectedDateDetails({ day, dateStr, events: dayEvents })}
+              className={`p-1 sm:p-2 border border-slate-700 min-h-[80px] sm:min-h-[100px] cursor-pointer transition-colors hover:bg-slate-700 relative group flex flex-col ${bgColor} ${ringStyle}`}
+            >
+              <div className="flex justify-between items-start mb-1">
+                <div className="flex flex-col">
+                  <span className={`text-xs sm:text-sm w-6 h-6 flex items-center justify-center rounded-full ${isToday ? 'bg-blue-600 text-white font-bold' : dateTextColor}`}>
+                    {day}
+                  </span>
+                  {isHoliday && (
+                    <span className={`text-[9px] sm:text-[10px] truncate leading-tight mt-0.5 ${isCurrentMonth ? 'text-rose-400 font-bold' : 'text-rose-900/60 font-medium'}`}>
+                      {holidayName}
+                    </span>
+                  )}
+                </div>
+                {dayEvents.length > 0 && (
+                  <span className="text-[10px] text-slate-400 sm:hidden bg-slate-700 px-1.5 py-0.5 rounded-full">{dayEvents.length}</span>
+                )}
+              </div>
+              
+              <div className="space-y-1 overflow-y-auto flex-1 no-scrollbar mt-1">
+                {dayEvents.map(evt => (
+                  <div 
+                    key={evt.id} 
+                    className={`text-[10px] sm:text-xs truncate px-1.5 py-0.5 rounded-md font-bold shadow-sm ${!isCurrentMonth && 'opacity-40'}
+                    ${evt.type === 'work' ? 'bg-blue-500/20 text-blue-300 border border-blue-500/30' : 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'}`}
+                  >
+                    {evt.title}
+                  </div>
+                ))}
+              </div>
+            </div>
+          );
+        };
+
+        const prevMonthNum = currentMonth === 0 ? 11 : currentMonth - 1;
+        const prevYear = currentMonth === 0 ? currentYear - 1 : currentYear;
+        for (let i = 0; i < firstDay; i++) {
+          const day = prevMonthDays - firstDay + i + 1;
+          days.push(renderDayCell(prevYear, prevMonthNum, day, false));
+        }
+
+        for (let day = 1; day <= daysInMonth; day++) {
+          days.push(renderDayCell(currentYear, currentMonth, day, true));
+        }
+
+        const totalCells = firstDay + daysInMonth;
+        const nextDays = (7 - (totalCells % 7)) % 7;
+        const nextMonthNum = currentMonth === 11 ? 0 : currentMonth + 1;
+        const nextYear = currentMonth === 11 ? currentYear + 1 : currentYear;
+        
+        for (let i = 1; i <= nextDays; i++) {
+          days.push(renderDayCell(nextYear, nextMonthNum, i, false));
+        }
+
+        return days;
+      };
+
+      return (
+        <div className="min-h-screen p-2 sm:p-4 md:p-8">
+          <div className="max-w-5xl mx-auto bg-slate-800 rounded-2xl shadow-xl border border-slate-700 overflow-hidden relative">
+            
+            {syncError && (
+              <div className="bg-rose-900/90 text-white text-sm px-4 py-2 flex items-center justify-between">
+                <span>{syncError}</span>
+                <button onClick={() => setSyncError(null)} className="hover:text-rose-200"><i className="fa-solid fa-xmark text-base"></i></button>
+              </div>
+            )}
+
+            <div className="flex flex-col sm:flex-row items-center justify-between p-4 sm:p-6 border-b border-slate-700 gap-4">
+              <div className="flex items-center gap-4">
+                <button onClick={prevMonth} className="p-2 hover:bg-slate-700 rounded-full transition-colors text-slate-400 hover:text-white">
+                  <i className="fa-solid fa-chevron-left text-xl"></i>
+                </button>
+                
+                <h2 
+                  onClick={() => { setPickerYear(currentYear); setIsDatePickerOpen(true); }}
+                  className="text-xl sm:text-2xl font-bold flex items-center gap-2 min-w-[120px] justify-center cursor-pointer hover:bg-slate-700 px-3 py-1.5 rounded-xl transition-colors text-white group"
+                >
+                  <i className="fa-regular fa-calendar text-blue-500 hidden sm:block group-hover:scale-110 transition-transform text-2xl"></i>
+                  {currentYear}년 {currentMonth + 1}월
+                </h2>
+                
+                <button onClick={nextMonth} className="p-2 hover:bg-slate-700 rounded-full transition-colors text-slate-400 hover:text-white">
+                  <i className="fa-solid fa-chevron-right text-xl"></i>
+                </button>
+              </div>
+
+              <div className="flex items-center gap-2 w-full sm:w-auto">
+                {isLoading ? (
+                   <div className="text-slate-400 text-sm flex items-center gap-2 pr-4">
+                     <i className="fa-solid fa-spinner fa-spin text-base"></i> 동기화 중...
+                   </div>
+                ) : (
+                   <button onClick={fetchCalendarData} className="p-2 text-slate-400 hover:text-white hover:bg-slate-700 rounded-full transition-colors" title="새로고침">
+                     <i className="fa-solid fa-rotate text-lg"></i>
+                   </button>
+                )}
+                
+                <div className="relative flex-1 sm:w-48">
+                  <input 
+                    type="text" 
+                    placeholder="일정 검색..." 
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="w-full pl-9 pr-3 py-2 bg-slate-900 border-transparent focus:bg-slate-950 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/50 rounded-lg text-sm transition-all outline-none text-slate-200 placeholder-slate-500 shadow-inner"
+                  />
+                  <i className="fa-solid fa-magnifying-glass absolute left-3 top-3 text-slate-500 text-sm"></i>
+                </div>
+                
+                <button 
+                  onClick={() => {
+                    setFormData({ id: null, date: formatDate(currentYear, currentMonth, new Date().getDate()), type: 'work', title: '', description: '' });
+                    setIsEventFormOpen(true);
+                  }}
+                  className="bg-blue-600 hover:bg-blue-500 text-white p-2 sm:px-4 rounded-lg flex items-center gap-1 transition-colors whitespace-nowrap shadow-sm font-medium"
+                >
+                  <i className="fa-solid fa-plus text-base"></i>
+                  <span className="hidden sm:inline text-sm">일정 추가</span>
+                </button>
+              </div>
+            </div>
+
+            {}
+            {isLoading && events.length === 0 && (
+              <div className="absolute inset-0 z-40 bg-slate-800/80 backdrop-blur-sm flex flex-col items-center justify-center top-[88px]">
+                 <i className="fa-solid fa-spinner fa-spin text-blue-500 mb-4 text-4xl"></i>
+                 <p className="text-slate-300 font-medium">구글 시트에서 데이터를 불러오는 중입니다...</p>
+              </div>
+            )}
+
+            {searchQuery.trim() ? (
+              <div className="p-4 sm:p-6 bg-slate-800 min-h-[500px]">
+                <h3 className="text-lg font-bold mb-4 flex items-center gap-2 text-white">
+                  <i className="fa-solid fa-magnifying-glass text-blue-400 text-lg"></i> 
+                  "{searchQuery}" 검색 결과 ({filteredSearchEvents.length}건)
+                </h3>
+                {filteredSearchEvents.length > 0 ? (
+                  <div className="space-y-3">
+                    {filteredSearchEvents.map(evt => (
+                      <div key={evt.id} className="bg-slate-700 p-4 rounded-xl shadow-sm border border-slate-600 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                        <div>
+                          <div className="flex items-center gap-2 mb-1">
+                            <span className="text-sm font-medium text-slate-300 bg-slate-800 border border-slate-600 px-2 py-0.5 rounded-md">{evt.date}</span>
+                            <span className={`text-[10px] px-2 py-0.5 rounded-full flex items-center gap-1 font-bold border ${evt.type === 'work' ? 'bg-blue-500/20 text-blue-300 border-blue-500/30' : 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30'}`}>
+                              {evt.type === 'work' ? '업무' : '개인'}
+                            </span>
+                          </div>
+                          <h4 className="font-bold text-white">{evt.title}</h4>
+                          <p className="text-sm text-slate-400 mt-1">{evt.description}</p>
+                        </div>
+                        <button 
+                          onClick={() => handleEditEvent(evt)}
+                          className="text-sm px-3 py-1.5 bg-slate-600 hover:bg-slate-500 text-white rounded-lg transition-colors shrink-0 flex items-center justify-center gap-1.5"
+                        >
+                          <i className="fa-solid fa-pen text-xs"></i> 수정하기
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center text-slate-500 py-12">검색 결과가 없습니다.</div>
+                )}
+              </div>
+            ) : (
+              <div className="p-2 sm:p-6">
+                <div className="grid grid-cols-7 mb-2">
+                  {['일', '월', '화', '수', '목', '금', '토'].map((day, i) => (
+                    <div key={day} className={`text-center text-xs sm:text-sm font-semibold py-2
+                      ${i === 0 ? 'text-rose-400' : (i === 6 ? 'text-blue-400' : 'text-slate-400')}`}>
+                      {day}
+                    </div>
+                  ))}
+                </div>
+                <div className="grid grid-cols-7 gap-px bg-slate-700 border border-slate-700 rounded-xl overflow-hidden shadow-sm">
+                  {renderCalendar()}
+                </div>
+              </div>
+            )}
+
+            {selectedDateDetails && (
+              <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
+                <div className="bg-slate-800 border border-slate-600 rounded-2xl shadow-2xl w-full max-w-sm sm:max-w-md overflow-hidden flex flex-col max-h-[80vh]">
+                  <div className="flex items-center justify-between p-4 border-b border-slate-700 bg-slate-700/80">
+                    <h3 className="font-bold text-lg flex items-center gap-2">
+                      <span className="bg-slate-900 px-2 py-1 rounded-lg border border-slate-600 text-blue-400 shadow-sm">{selectedDateDetails.day}일</span>
+                      <span className="text-slate-300 text-sm font-normal">{currentYear}년 {currentMonth + 1}월</span>
+                    </h3>
+                    <button onClick={() => setSelectedDateDetails(null)} className="p-1.5 hover:bg-slate-600 rounded-full text-slate-400 hover:text-white transition-colors">
+                      <i className="fa-solid fa-xmark text-lg"></i>
+                    </button>
+                  </div>
+                  
+                  <div className="p-4 overflow-y-auto flex-1">
+                    {selectedDateDetails.events.length > 0 ? (
+                      <div className="space-y-3">
+                        {selectedDateDetails.events.map(evt => (
+                          <div key={evt.id} className="bg-slate-700 p-4 rounded-xl shadow-sm border border-slate-600 relative overflow-hidden group">
+                            <div className={`absolute top-0 left-0 w-1 h-full ${evt.type === 'work' ? 'bg-blue-500' : 'bg-emerald-500'}`}></div>
+                            <div className="flex items-start justify-between">
+                              <div className="flex items-center gap-2 mb-2 pl-2">
+                                 <span className={`text-[10px] px-2 py-0.5 rounded-full flex items-center gap-1 font-bold border ${evt.type === 'work' ? 'bg-blue-500/20 text-blue-300 border-blue-500/30' : 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30'}`}>
+                                   {evt.type === 'work' ? <i className="fa-solid fa-briefcase text-[10px]"></i> : <i className="fa-solid fa-user text-[10px]"></i>}
+                                   {evt.type === 'work' ? '업무' : '개인'}
+                                </span>
+                                <h4 className="font-semibold text-white">{evt.title}</h4>
+                              </div>
+                              <button 
+                                onClick={(e) => { e.stopPropagation(); handleEditEvent(evt); }}
+                                className="text-slate-400 hover:text-blue-400 hover:bg-slate-600 p-1.5 rounded-md transition-colors"
+                              >
+                                <i className="fa-solid fa-pen text-sm"></i>
+                              </button>
+                            </div>
+                            <div className="pl-2 flex gap-2 text-slate-200 text-sm mt-2 bg-slate-800/50 p-2.5 rounded-lg border border-slate-600">
+                              <i className="fa-solid fa-file-lines shrink-0 text-slate-400 mt-1 text-sm"></i>
+                              <p className="whitespace-pre-wrap leading-relaxed">{evt.description}</p>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="text-center py-10 text-slate-500 flex flex-col items-center">
+                        <i className="fa-regular fa-calendar mb-3 opacity-20 text-4xl"></i>
+                        <p>등록된 일정이 없습니다.</p>
+                      </div>
+                    )}
+                  </div>
+                  
+                  <div className="p-4 border-t border-slate-700 bg-slate-800">
+                    <button 
+                      onClick={() => {
+                        setFormData({ id: null, date: selectedDateDetails.dateStr, type: 'work', title: '', description: '' });
+                        setIsEventFormOpen(true);
+                      }}
+                      className="w-full bg-slate-700 border border-slate-600 text-blue-400 hover:text-blue-300 hover:bg-slate-600 py-2.5 rounded-lg font-medium transition-colors flex items-center justify-center gap-2"
+                    >
+                      <i className="fa-solid fa-plus text-base"></i> 이 날짜에 일정 추가
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {isEventFormOpen && (
+              <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[60] p-4 backdrop-blur-sm">
+                <div className="bg-slate-800 border border-slate-600 rounded-2xl shadow-2xl w-full max-w-md overflow-hidden relative">
+                  
+                  {isSaving && (
+                    <div className="absolute inset-0 bg-slate-900/60 z-10 flex flex-col items-center justify-center backdrop-blur-sm">
+                      <i className="fa-solid fa-spinner fa-spin text-blue-500 mb-3 text-3xl"></i>
+                      <span className="text-sm font-medium text-white">시트에 기록 중...</span>
+                    </div>
+                  )}
+
+                  <div className="flex items-center justify-between p-4 border-b border-slate-700 bg-slate-700/80">
+                    <h3 className="font-bold text-lg text-white">{formData.id ? '일정 수정' : '새 일정 추가'}</h3>
+                    <button onClick={() => !isSaving && setIsEventFormOpen(false)} className="p-1 hover:bg-slate-600 rounded-full text-slate-400 hover:text-white transition-colors">
+                      <i className="fa-solid fa-xmark text-lg"></i>
+                    </button>
+                  </div>
+                  
+                  <form onSubmit={handleSaveEvent} className="p-5 space-y-4">
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-xs font-medium text-slate-300 mb-1">날짜</label>
+                        <input 
+                          type="date" required value={formData.date}
+                          onChange={e => setFormData({...formData, date: e.target.value})}
+                          className="w-full p-2.5 bg-slate-900 border border-slate-700 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition-all text-sm text-slate-200 color-scheme-dark shadow-inner"
+                          style={{ colorScheme: 'dark' }}
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-slate-300 mb-1">구분</label>
+                        <div className="flex bg-slate-900 p-1 rounded-lg border border-slate-700 shadow-inner">
+                          <button 
+                            type="button" onClick={() => setFormData({...formData, type: 'work'})}
+                            className={`flex-1 py-1.5 text-xs font-bold rounded-md flex justify-center items-center gap-1 transition-all
+                              ${formData.type === 'work' ? 'bg-slate-700 shadow-sm text-blue-400 border border-slate-600' : 'text-slate-500 hover:text-slate-300'}`}
+                          >
+                            <i className="fa-solid fa-briefcase"></i> 업무
+                          </button>
+                          <button 
+                            type="button" onClick={() => setFormData({...formData, type: 'personal'})}
+                            className={`flex-1 py-1.5 text-xs font-bold rounded-md flex justify-center items-center gap-1 transition-all
+                              ${formData.type === 'personal' ? 'bg-slate-700 shadow-sm text-emerald-400 border border-slate-600' : 'text-slate-500 hover:text-slate-300'}`}
+                          >
+                            <i className="fa-solid fa-user"></i> 개인
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-medium text-slate-300 mb-1">제목 (요약)</label>
+                      <input 
+                        type="text" required placeholder="예: 주간 회의" value={formData.title}
+                        onChange={e => setFormData({...formData, title: e.target.value})}
+                        className="w-full p-2.5 bg-slate-900 border border-slate-700 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition-all text-slate-200 placeholder-slate-600 shadow-inner"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-medium text-slate-300 mb-1">상세 내용</label>
+                      <textarea 
+                        rows={4} placeholder="장소, 시간, 준비물, 상세 내용 등" value={formData.description}
+                        onChange={e => setFormData({...formData, description: e.target.value})}
+                        className="w-full p-2.5 bg-slate-900 border border-slate-700 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition-all resize-none text-sm text-slate-200 placeholder-slate-600 shadow-inner"
+                      ></textarea>
+                    </div>
+
+                    <div className="pt-4 mt-2 border-t border-slate-700 flex justify-between gap-2">
+                      {formData.id && (
+                        <button 
+                          type="button" onClick={() => handleDeleteEvent(formData.id)} disabled={isSaving}
+                          className="px-4 py-2.5 bg-rose-950/40 text-rose-400 rounded-lg font-medium hover:bg-rose-900/60 transition-colors flex items-center justify-center shadow-sm border border-rose-900/50 disabled:opacity-50"
+                        >
+                          <i className="fa-solid fa-trash text-base"></i>
+                        </button>
+                      )}
+                      <div className="flex gap-2 flex-1">
+                        <button 
+                          type="button" onClick={() => setIsEventFormOpen(false)} disabled={isSaving}
+                          className="flex-1 px-4 py-2.5 bg-slate-700 text-slate-300 rounded-lg font-medium hover:bg-slate-600 hover:text-white transition-colors border border-slate-600 disabled:opacity-50"
+                        >취소</button>
+                        <button 
+                          type="submit" disabled={isSaving}
+                          className="flex-1 px-4 py-2.5 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-500 transition-colors shadow-sm disabled:opacity-50"
+                        >저장하기</button>
+                      </div>
+                    </div>
+                  </form>
+                </div>
+              </div>
+            )}
+
+            {isDatePickerOpen && (
+              <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[70] p-4 backdrop-blur-sm">
+                <div className="bg-slate-800 border border-slate-600 rounded-2xl shadow-2xl w-full max-w-xs overflow-hidden">
+                  <div className="flex items-center justify-between p-4 border-b border-slate-700 bg-slate-700/80">
+                    <h3 className="font-bold text-lg text-white">날짜 이동</h3>
+                    <button onClick={() => setIsDatePickerOpen(false)} className="p-1.5 hover:bg-slate-600 rounded-full text-slate-400 hover:text-white transition-colors">
+                      <i className="fa-solid fa-xmark text-lg"></i>
+                    </button>
+                  </div>
+                  
+                  <div className="p-5">
+                    <div className="flex items-center justify-between mb-6 bg-slate-900 border border-slate-700 p-2 rounded-xl shadow-inner">
+                      <button onClick={() => setPickerYear(prev => prev - 1)} className="p-2 hover:bg-slate-700 rounded-lg transition-colors text-slate-400 hover:text-white">
+                        <i className="fa-solid fa-chevron-left"></i>
+                      </button>
+                      <span className="text-lg font-bold text-white">{pickerYear}년</span>
+                      <button onClick={() => setPickerYear(prev => prev + 1)} className="p-2 hover:bg-slate-700 rounded-lg transition-colors text-slate-400 hover:text-white">
+                        <i className="fa-solid fa-chevron-right"></i>
+                      </button>
+                    </div>
+                    
+                    <div className="grid grid-cols-4 gap-2">
+                      {Array.from({length: 12}, (_, i) => i + 1).map(month => {
+                        const isSelected = pickerYear === currentYear && (month - 1) === currentMonth;
+                        return (
+                          <button
+                            key={month}
+                            onClick={() => { setCurrentDate(new Date(pickerYear, month - 1, 1)); setIsDatePickerOpen(false); }}
+                            className={`py-3 rounded-xl text-sm font-bold transition-all
+                              ${isSelected ? 'bg-blue-600 text-white shadow-md scale-105' : 'bg-slate-700 border border-slate-600 text-slate-300 hover:bg-slate-600 hover:text-white'}`}
+                          >
+                            {month}월
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                  
+                  <div className="p-4 border-t border-slate-700 bg-slate-700/50">
+                    <button 
+                      onClick={() => { setCurrentDate(new Date()); setIsDatePickerOpen(false); }}
+                      className="w-full bg-slate-700 border border-slate-600 text-slate-200 hover:bg-slate-600 hover:text-white py-2.5 rounded-lg font-medium transition-colors text-sm shadow-sm"
+                    >오늘 날짜로 돌아가기</button>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      );
+    }
+
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<App />);
+  </script>
+</body>
+</html>
