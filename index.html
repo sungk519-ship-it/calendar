@@ -106,16 +106,25 @@
       const currentYear = currentDate.getFullYear();
       const currentMonth = currentDate.getMonth();
 
-      // 💡 데이터 동기화 함수 (안전장치 강화: 통신 실패 시 기존 일정 유지)
+      // 💡 CORS 우회를 위해 GET 대신 POST 요청으로 데이터 동기화
       const fetchCalendarData = async () => {
         setIsLoading(true);
         setSyncError(null);
         try {
-          const response = await fetch(API_URL);
+          const response = await fetch(API_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+            body: JSON.stringify({ action: 'get' })
+          });
           const data = await response.json();
-          if (data && Array.isArray(data.events)) {
+          if (data && data.status === 'success' && Array.isArray(data.events)) {
             setEvents(data.events);
             localStorage.setItem('my_calendar_events', JSON.stringify(data.events));
+            // 상세 팝업이 열려있다면 내용도 실시간 갱신
+            if (selectedDateDetails) {
+              const freshEvents = data.events.filter(e => e.date === selectedDateDetails.dateStr);
+              setSelectedDateDetails(prev => prev ? { ...prev, events: freshEvents } : null);
+            }
           }
         } catch (error) {
           console.error("데이터 동기화 실패:", error);
