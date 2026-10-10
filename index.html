@@ -35,7 +35,7 @@
   <script type="text/babel">
     const { useState, useMemo, useEffect, useRef } = React;
     
-    // 🚀 사용자님의 최신 구글 웹 앱 URL (수정 완료)
+    // 🚀 사용자님의 최신 구글 웹 앱 URL
     const API_URL = 'https://script.google.com/macros/s/AKfycbwG-JOdmTz27GORlmcGexXUQBf59MxRTgH_cIvFqRt_ybBpbJfQ-8EWjHXFOGvpEr1g-Q/exec';
 
     // 10년치 한국 공휴일 데이터 내장 (로딩 0초)
@@ -321,10 +321,11 @@
           
           {/* 상단 큼직한 연도/월 헤더 & 버튼들 */}
           <div className="px-5 pt-6 pb-4 flex items-center justify-between shrink-0">
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1">
               <button onClick={prevMonth} className="p-2 -ml-2 text-slate-400 hover:text-white rounded-full"><IconChevronLeft /></button>
-              <h2 className="text-3xl font-black text-white tracking-tight flex items-baseline gap-2">
-                {currentMonth + 1}월 <span className="text-lg text-slate-400 font-semibold tracking-normal">({currentYear})</span>
+              {/* 💡 요청하신 이전 버전의 직관적인 타이틀 스타일로 복구 */}
+              <h2 className="text-2xl font-black text-white px-1 tracking-tight">
+                {currentYear}년 {currentMonth + 1}월
               </h2>
               <button onClick={nextMonth} className="p-2 text-slate-400 hover:text-white rounded-full"><IconChevronRight /></button>
             </div>
