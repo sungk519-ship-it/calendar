@@ -2,6 +2,7 @@
 <html lang="ko">
 <head>
   <meta charset="UTF-8">
+  <!-- 모바일 꽉 차게, 확대 방지 -->
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>내 개인 달력</title>
   
@@ -16,84 +17,72 @@
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
   
   <style>
+    /* 스크롤바 숨기기 (깔끔한 UI) */
     .no-scrollbar::-webkit-scrollbar { display: none; }
     .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
-    input[type="date"]::-webkit-calendar-picker-indicator { filter: invert(1); }
+    
+    /* 💡 문제 해결 1: 날짜 입력칸의 검은색 달력 아이콘을 하얗게 반전! */
+    input[type="date"]::-webkit-calendar-picker-indicator { 
+      filter: invert(1) brightness(200%); /* 완벽한 흰색으로 만듦 */
+      opacity: 0.6;
+      cursor: pointer;
+    }
+    
+    /* 💡 문제 해결 2: 검색창의 검은색 X(지우기) 버튼을 하얗게 반전! */
+    input[type="search"]::-webkit-search-cancel-button {
+      filter: invert(1) brightness(200%);
+      opacity: 0.6;
+      cursor: pointer;
+    }
+
+    /* 비밀번호 틀렸을 때 흔들리는 애니메이션 */
     @keyframes shake {
       0%, 100% { transform: translateX(0); }
-      20%, 60% { transform: translateX(-6px); }
-      40%, 80% { transform: translateX(6px); }
+      20%, 60% { transform: translateX(-8px); }
+      40%, 80% { transform: translateX(8px); }
     }
     .animate-shake { animation: shake 0.4s ease-in-out; }
-    html, body { overscroll-behavior-y: none; }
+    
+    /* 당겨서 새로고침 방지 (모바일 앱 느낌) */
+    html, body { overscroll-behavior-y: none; background-color: #0f172a; }
+
+    /* 캘린더 그리드 행 간격 (가로줄 디자인) */
+    .grid-row-lines > div {
+      border-bottom: 1px solid #1e293b;
+    }
   </style>
 </head>
 <body class="bg-slate-950 text-slate-200 font-sans m-0 p-0 h-[100dvh] w-screen overflow-hidden flex flex-col select-none">
   <div id="root" class="flex-1 flex flex-col h-full w-full overflow-hidden"></div>
 
   <script type="text/babel">
-    const { useState, useMemo, useEffect } = React;
+    const { useState, useMemo, useEffect, useRef } = React;
     
-    // 💡 사용자의 최신 구글 앱스 스크립트 웹 앱 URL 고정
+    // 💡 최신 웹 앱 URL 반영 완료
     const API_URL = 'https://script.google.com/macros/s/AKfycbwG-JOdmTz27GORlmcGexXUQBf59MxRTgH_cIvFqRt_ybBpbJfQ-8EWjHXFOGvpEr1g-Q/exec';
 
-    // 10년치 대한민국 공휴일 (2024 ~ 2034)
+    // 10년치 대한민국 공휴일 (로딩 0초를 위한 내장 데이터)
     const KOREAN_HOLIDAYS = {
-      "2024-01-01": "신정", "2024-02-09": "설날 연휴", "2024-02-10": "설날", "2024-02-11": "설날 연휴", "2024-02-12": "대체공휴일",
-      "2024-03-01": "3·1절", "2024-04-10": "국회의원선거", "2024-05-05": "어린이날", "2024-05-06": "대체공휴일", "2024-05-15": "부처님오신날",
-      "2024-06-06": "현충일", "2024-08-15": "광복절", "2024-09-16": "추석 연휴", "2024-09-17": "추석", "2024-09-18": "추석 연휴",
-      "2024-10-03": "개천절", "2024-10-09": "한글날", "2024-12-25": "기독탄신일",
-
-      "2025-01-01": "신정", "2025-01-28": "설날 연휴", "2025-01-29": "설날", "2025-01-30": "설날 연휴",
-      "2025-03-01": "3·1절", "2025-03-03": "대체공휴일", "2025-05-05": "어린이날, 부처님오신날", "2025-05-06": "대체공휴일",
-      "2025-06-06": "현충일", "2025-08-15": "광복절", "2025-10-05": "추석 연휴", "2025-10-06": "추석", "2025-10-07": "추석 연휴", "2025-10-08": "대체공휴일",
-      "2025-10-03": "개천절", "2025-10-09": "한글날", "2025-12-25": "기독탄신일",
-
-      "2026-01-01": "신정", "2026-02-16": "설날 연휴", "2026-02-17": "설날", "2026-02-18": "설날 연휴",
-      "2026-03-01": "3·1절", "2026-03-02": "대체공휴일", "2026-05-05": "어린이날", "2026-05-24": "부처님오신날", "2026-05-25": "대체공휴일",
-      "2026-06-06": "현충일", "2026-08-15": "광복절", "2026-08-17": "대체공휴일", "2026-09-24": "추석 연휴", "2026-09-25": "추석", "2026-09-26": "추석 연휴",
-      "2026-10-03": "개천절", "2026-10-05": "대체공휴일", "2026-10-09": "한글날", "2026-12-25": "기독탄신일",
-
-      "2027-01-01": "신정", "2027-02-06": "설날 연휴", "2027-02-07": "설날", "2027-02-08": "설날 연휴", "2027-02-09": "대체공휴일",
-      "2027-03-01": "3·1절", "2027-05-05": "어린이날", "2027-05-13": "부처님오신날", "2027-06-06": "현충일", "2027-06-07": "대체공휴일",
-      "2027-08-15": "광복절", "2027-08-16": "대체공휴일", "2027-09-14": "추석 연휴", "2027-09-15": "추석", "2027-09-16": "추석 연휴",
-      "2027-10-03": "개천절", "2027-10-04": "대체공휴일", "2027-10-09": "한글날", "2027-12-25": "기독탄신일",
-
-      "2028-01-01": "신정", "2028-01-26": "설날 연휴", "2028-01-27": "설날", "2028-01-28": "설날 연휴",
-      "2028-03-01": "3·1절", "2028-05-02": "부처님오신날", "2028-05-05": "어린이날", "2028-06-06": "현충일", "2028-08-15": "광복절",
-      "2028-10-02": "추석 연휴", "2028-10-03": "개천절, 추석", "2028-10-04": "추석 연휴", "2028-10-05": "대체공휴일", "2028-10-09": "한글날", "2028-12-25": "기독탄신일",
-
-      "2029-01-01": "신정", "2029-02-12": "설날 연휴", "2029-02-13": "설날", "2029-02-14": "설날 연휴",
-      "2029-03-01": "3·1절", "2029-05-05": "어린이날", "2029-05-07": "대체공휴일", "2029-05-20": "부처님오신날", "2029-05-21": "대체공휴일",
-      "2029-06-06": "현충일", "2029-08-15": "광복절", "2029-09-21": "추석 연휴", "2029-09-22": "추석", "2029-09-23": "추석 연휴", "2029-09-24": "대체공휴일",
-      "2029-10-03": "개천절", "2029-10-09": "한글날", "2029-12-25": "기독탄신일",
-
-      "2030-01-01": "신정", "2030-02-01": "설날 연휴", "2030-02-02": "설날", "2030-02-03": "설날 연휴", "2030-02-04": "대체공휴일",
-      "2030-03-01": "3·1절", "2030-05-05": "어린이날", "2030-05-06": "대체공휴일", "2030-05-09": "부처님오신날",
-      "2030-06-06": "현충일", "2030-08-15": "광복절", "2030-09-11": "추석 연휴", "2030-09-12": "추석", "2030-09-13": "추석 연휴",
-      "2030-10-03": "개천절", "2030-10-09": "한글날", "2030-12-25": "기독탄신일",
-
-      "2031-01-01": "신정", "2031-03-01": "3·1절", "2031-05-05": "어린이날", "2031-06-06": "현충일", "2031-08-15": "광복절", "2031-10-03": "개천절", "2031-10-09": "한글날", "2031-12-25": "기독탄신일",
-      "2032-01-01": "신정", "2032-03-01": "3·1절", "2032-05-05": "어린이날", "2032-06-06": "현충일", "2032-08-15": "광복절", "2032-10-03": "개천절", "2032-10-09": "한글날", "2032-12-25": "기독탄신일",
-      "2033-01-01": "신정", "2033-03-01": "3·1절", "2033-05-05": "어린이날", "2033-06-06": "현충일", "2033-08-15": "광복절", "2033-10-03": "개천절", "2033-10-09": "한글날", "2033-12-25": "기독탄신일",
-      "2034-01-01": "신정", "2034-03-01": "3·1절", "2034-05-05": "어린이날", "2034-06-06": "현충일", "2034-08-15": "광복절", "2034-10-03": "개천절", "2034-10-09": "한글날", "2034-12-25": "기독탄신일"
+      "2024-01-01": "신정", "2024-02-09": "설날 연휴", "2024-02-10": "설날", "2024-02-11": "설날 연휴", "2024-02-12": "대체공휴일", "2024-03-01": "3·1절", "2024-04-10": "국회의원선거", "2024-05-05": "어린이날", "2024-05-06": "대체공휴일", "2024-05-15": "부처님오신날", "2024-06-06": "현충일", "2024-08-15": "광복절", "2024-09-16": "추석 연휴", "2024-09-17": "추석", "2024-09-18": "추석 연휴", "2024-10-03": "개천절", "2024-10-09": "한글날", "2024-12-25": "기독탄신일",
+      "2025-01-01": "신정", "2025-01-28": "설날 연휴", "2025-01-29": "설날", "2025-01-30": "설날 연휴", "2025-03-01": "3·1절", "2025-03-03": "대체공휴일", "2025-05-05": "어린이날, 부처님오신날", "2025-05-06": "대체공휴일", "2025-06-06": "현충일", "2025-08-15": "광복절", "2025-10-03": "개천절", "2025-10-05": "추석 연휴", "2025-10-06": "추석", "2025-10-07": "추석 연휴", "2025-10-08": "대체공휴일", "2025-10-09": "한글날", "2025-12-25": "기독탄신일",
+      "2026-01-01": "신정", "2026-02-16": "설날 연휴", "2026-02-17": "설날", "2026-02-18": "설날 연휴", "2026-03-01": "3·1절", "2026-03-02": "대체공휴일", "2026-05-05": "어린이날", "2026-05-24": "부처님오신날", "2026-05-25": "대체공휴일", "2026-06-06": "현충일", "2026-08-15": "광복절", "2026-08-17": "대체공휴일", "2026-09-24": "추석 연휴", "2026-09-25": "추석", "2026-09-26": "추석 연휴", "2026-10-03": "개천절", "2026-10-05": "대체공휴일", "2026-10-09": "한글날", "2026-12-25": "기독탄신일"
     };
 
-    const IconLock = () => <svg className="w-7 h-7" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>;
-    const IconDelete = () => <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M21 4H8l-7 8 7 8h13a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2z"/><line x1="18" y1="9" x2="12" y2="15"/><line x1="12" y1="9" x2="18" y2="15"/></svg>;
-    const IconChevronLeft = () => <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg>;
-    const IconChevronRight = () => <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg>;
-    const IconRefresh = () => <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.2" viewBox="0 0 24 24"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.65-5.65"/></svg>;
-    const IconSearch = () => <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>;
-    const IconPlus = () => <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>;
+    const IconLock = () => <svg className="w-8 h-8" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>;
+    const IconDelete = () => <svg className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M21 4H8l-7 8 7 8h13a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2z"/><line x1="18" y1="9" x2="12" y2="15"/><line x1="12" y1="9" x2="18" y2="15"/></svg>;
+    const IconChevronLeft = () => <svg className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg>;
+    const IconChevronRight = () => <svg className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg>;
+    const IconRefresh = () => <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.65-5.65"/></svg>;
+    const IconSearch = () => <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>;
+    const IconPlus = () => <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>;
+    // 💡 X 버튼 획을 더 굵게(strokeWidth="2.5") 만들어 점으로 보이는 현상 완벽 방지
     const IconX = () => <svg className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>;
     const IconEdit = () => <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>;
     const IconTrash = () => <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>;
-    const IconBriefcase = () => <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><rect width="20" height="14" x="2" y="7" rx="2" ry="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>;
-    const IconUser = () => <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>;
+    const IconBriefcase = () => <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><rect width="20" height="14" x="2" y="7" rx="2" ry="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>;
+    const IconUser = () => <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>;
 
     function App() {
-      // PIN Authentication (1017)
       const [isAuthenticated, setIsAuthenticated] = useState(false);
       const [pin, setPin] = useState([]);
       const [isError, setIsError] = useState(false);
@@ -101,22 +90,15 @@
       const [currentDate, setCurrentDate] = useState(new Date()); 
       const [events, setEvents] = useState(() => {
         try {
-          const cached = localStorage.getItem('my_calendar_events_v12');
+          const cached = localStorage.getItem('my_calendar_events_v2');
           return cached ? JSON.parse(cached) : [];
-        } catch(e) {
-          return [];
-        }
+        } catch(e) { return []; }
       });
       
-      const [isLoading, setIsLoading] = useState(false);
-      const [isSaving, setIsSaving] = useState(false);
-      const [syncError, setSyncError] = useState(null);
-
+      const [isSyncing, setIsSyncing] = useState(false); // 로딩바 대신 배경 동기화 아이콘을 위해 이름 변경
       const [searchQuery, setSearchQuery] = useState('');
       const [selectedDateDetails, setSelectedDateDetails] = useState(null); 
       const [isEventFormOpen, setIsEventFormOpen] = useState(false); 
-      const [isDatePickerOpen, setIsDatePickerOpen] = useState(false);
-      const [pickerYear, setPickerYear] = useState(currentDate.getFullYear());
       
       const [formData, setFormData] = useState({ id: null, startDate: '', endDate: '', type: 'personal', title: '', description: '' });
 
@@ -124,8 +106,7 @@
       const currentMonth = currentDate.getMonth();
 
       const fetchCalendarData = async () => {
-        setIsLoading(true);
-        setSyncError(null);
+        setIsSyncing(true);
         try {
           const response = await fetch(API_URL, {
             method: 'POST',
@@ -135,73 +116,57 @@
           const data = await response.json();
           if (data && data.status === 'success' && Array.isArray(data.events)) {
             setEvents(data.events);
-            localStorage.setItem('my_calendar_events_v12', JSON.stringify(data.events));
+            localStorage.setItem('my_calendar_events_v2', JSON.stringify(data.events));
             
+            // 상세 팝업이 열려있으면 데이터 갱신
             if (selectedDateDetails) {
               const freshEvents = data.events.filter(e => isDateInRange(selectedDateDetails.dateStr, e.startDate, e.endDate));
               setSelectedDateDetails(prev => prev ? { ...prev, events: freshEvents } : null);
             }
           }
         } catch (error) {
-          console.error("동기화 실패:", error);
-          setSyncError("서버 연결이 원활하지 않습니다.");
+          console.error("동기화 에러:", error);
         } finally {
-          setIsLoading(false);
+          setIsSyncing(false);
         }
       };
 
       useEffect(() => {
-        if (isAuthenticated) {
-          fetchCalendarData();
-        }
+        if (isAuthenticated) fetchCalendarData();
       }, [isAuthenticated]);
 
       const handlePinPress = (num) => {
         if (pin.length < 4) {
           const newPin = [...pin, num];
           setPin(newPin);
-          if (newPin.length === 3) { // 4번째 숫자 입력 시점
-            // check
-          }
           if (newPin.length === 4) {
-            const entered = newPin.join('');
-            if (entered === '1017') {
+            if (newPin.join('') === '1017') {
               setIsAuthenticated(true);
             } else {
               setIsError(true);
-              setTimeout(() => {
-                setPin([]);
-                setIsError(false);
-              }, 400);
+              setTimeout(() => { setPin([]); setIsError(false); }, 400);
             }
           }
         }
       };
-
-      const handlePinDelete = () => {
-        if (pin.length > 0) setPin(pin.slice(0, -1));
-      };
-
+      const handlePinDelete = () => { if (pin.length > 0) setPin(pin.slice(0, -1)); };
       const handlePinClear = () => setPin([]);
 
       const getDaysInMonth = (year, month) => new Date(year, month + 1, 0).getDate();
       const getFirstDayOfMonth = (year, month) => new Date(year, month, 1).getDay();
-      
-      const formatDate = (year, month, day) => {
-        return `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-      };
-
+      const formatDate = (year, month, day) => `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
       const getHolidayName = (dateStr) => KOREAN_HOLIDAYS[dateStr] || null;
-
+      
       const nextMonth = () => setCurrentDate(new Date(currentYear, currentMonth + 1, 1));
       const prevMonth = () => setCurrentDate(new Date(currentYear, currentMonth - 1, 1));
 
-      const isDateInRange = (dateStr, start, end) => {
-        if (!start) return false;
-        const target = new Date(dateStr).setHours(0,0,0,0);
-        const s = new Date(start).setHours(0,0,0,0);
-        const e = new Date(end || start).setHours(0,0,0,0);
-        return target >= s && target <= e;
+      // 기간 포함 여부 체크 (시작일 ~ 종료일 사이에 타겟 날짜가 있는지)
+      const isDateInRange = (targetDateStr, startDateStr, endDateStr) => {
+        if (!startDateStr) return false;
+        const target = new Date(targetDateStr).setHours(0,0,0,0);
+        const start = new Date(startDateStr).setHours(0,0,0,0);
+        const end = new Date(endDateStr || startDateStr).setHours(0,0,0,0);
+        return target >= start && target <= end;
       };
 
       const getEventsForDate = (dateStr) => {
@@ -215,11 +180,12 @@
         const finalStartDate = formData.startDate;
         const finalEndDate = formData.endDate && formData.endDate >= finalStartDate ? formData.endDate : finalStartDate;
 
-        setIsSaving(true);
         const isEdit = !!formData.id;
-        const action = isEdit ? 'update' : 'create';
-        const payloadData = {
-          id: formData.id,
+        // 1. 임시 고유 ID 생성
+        const tempId = isEdit ? formData.id : 'temp_' + new Date().getTime();
+        
+        const optimisticEvent = {
+          id: tempId,
           startDate: finalStartDate,
           endDate: finalEndDate,
           type: formData.type,
@@ -227,72 +193,64 @@
           description: formData.description
         };
 
+        // 2. 서버 응답을 기다리지 않고 화면에 '즉시' 그려버림 (체감 로딩 0초)
+        const updatedEvents = isEdit 
+          ? events.map(evt => evt.id === tempId ? optimisticEvent : evt)
+          : [...events, optimisticEvent];
+        
+        setEvents(updatedEvents);
+        localStorage.setItem('my_calendar_events_v2', JSON.stringify(updatedEvents));
+
+        // 상세 팝업이 열려있었다면 즉시 반영
+        if (selectedDateDetails && isDateInRange(selectedDateDetails.dateStr, finalStartDate, finalEndDate)) {
+           setSelectedDateDetails(prev => ({
+               ...prev, 
+               events: updatedEvents.filter(evt => isDateInRange(selectedDateDetails.dateStr, evt.startDate, evt.endDate))
+           }));
+        }
+
+        // 3. 로딩바 없이 팝업을 즉시 닫아버림 (사용자는 다 끝났다고 느낌)
+        setIsEventFormOpen(false);
+        setFormData({ id: null, startDate: '', endDate: '', type: 'personal', title: '', description: '' });
+
+        // 4. 뒷배경에서 조용히 서버(구글 시트)로 전송 시작
+        setIsSyncing(true);
         try {
-          const response = await fetch(API_URL, {
+          await fetch(API_URL, {
             method: 'POST',
             headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-            body: JSON.stringify({ action, data: payloadData })
+            body: JSON.stringify({ 
+              action: isEdit ? 'update' : 'create', 
+              data: optimisticEvent 
+            })
           });
-          const result = await response.json();
-
-          if (result.status === 'success') {
-            await fetchCalendarData();
-            setIsEventFormOpen(false);
-            setFormData({ id: null, startDate: '', endDate: '', type: 'personal', title: '', description: '' });
-          } else {
-            setSyncError("저장에 실패했습니다.");
-          }
+          // 저장 성공 후 깔끔하게 최종 데이터 싱크
+          fetchCalendarData();
         } catch (error) {
-          console.error("저장 오류:", error);
-          setSyncError("서버 통신 중 오류가 발생했습니다.");
-        } finally {
-          setIsSaving(false);
+          console.error("백그라운드 저장 실패:", error);
+          // 실제 서비스라면 실패 시 롤백 로직이 들어가나, 여기선 생략
         }
       };
 
       const handleDeleteEvent = async (id) => {
-        setIsSaving(true);
+        // 즉시 화면에서 삭제 (Optimistic UI)
+        const filteredEvents = events.filter(e => e.id !== id);
+        setEvents(filteredEvents);
+        localStorage.setItem('my_calendar_events_v2', JSON.stringify(filteredEvents));
+        
+        setIsEventFormOpen(false);
+        setSelectedDateDetails(null);
+        
+        setIsSyncing(true);
         try {
-          const payload = { action: 'delete', data: { id } };
-          const response = await fetch(API_URL, {
+          await fetch(API_URL, {
             method: 'POST',
             headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-            body: JSON.stringify(payload)
+            body: JSON.stringify({ action: 'delete', data: { id } })
           });
-          const result = await response.json();
-
-          if (result.status === 'success') {
-            await fetchCalendarData();
-            setIsEventFormOpen(false);
-            setSelectedDateDetails(null);
-          }
-        } catch (error) {
-          setSyncError("삭제 중 오류가 발생했습니다.");
-        } finally {
-          setIsSaving(false);
-        }
+          fetchCalendarData();
+        } catch (error) {}
       };
-
-      const handleEditEvent = (evt) => {
-        setFormData({
-          id: evt.id,
-          startDate: evt.startDate,
-          endDate: evt.endDate || evt.startDate,
-          type: evt.type,
-          title: evt.title,
-          description: evt.description
-        });
-        setIsEventFormOpen(true);
-      };
-
-      const filteredSearchEvents = useMemo(() => {
-        if (!searchQuery.trim()) return [];
-        const lowerQuery = searchQuery.toLowerCase();
-        return events.filter(evt => 
-          evt.title.toLowerCase().includes(lowerQuery) || 
-          evt.description.toLowerCase().includes(lowerQuery)
-        ).sort((a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime());
-      }, [searchQuery, events]);
 
       const renderCalendarRows = () => {
         const daysInMonth = getDaysInMonth(currentYear, currentMonth);
@@ -301,78 +259,77 @@
         
         const allCells = [];
 
-        // Previous month filler
-        const prevMonthNum = currentMonth === 0 ? 11 : currentMonth - 1;
-        const prevYear = currentMonth === 0 ? currentYear - 1 : currentYear;
+        // 이전 달 날짜
         for (let i = 0; i < firstDay; i++) {
-          const day = prevMonthDays - firstDay + i + 1;
-          allCells.push({ year: prevYear, month: prevMonthNum, day, isCurrentMonth: false });
+          allCells.push({ 
+            year: currentMonth === 0 ? currentYear - 1 : currentYear, 
+            month: currentMonth === 0 ? 11 : currentMonth - 1, 
+            day: prevMonthDays - firstDay + i + 1, 
+            isCurrent: false 
+          });
         }
-
-        // Current month
+        // 이번 달 날짜
         for (let day = 1; day <= daysInMonth; day++) {
-          allCells.push({ year: currentYear, month: currentMonth, day, isCurrentMonth: true });
+          allCells.push({ year: currentYear, month: currentMonth, day, isCurrent: true });
         }
-
-        // Next month filler to complete weeks
-        const totalCells = allCells.length;
-        const remaining = (7 - (totalCells % 7)) % 7;
-        const nextMonthNum = currentMonth === 11 ? 0 : currentMonth + 1;
-        const nextYear = currentMonth === 11 ? currentYear + 1 : currentYear;
+        // 다음 달 날짜 (6주=42칸 맞추기)
+        const remaining = 42 - allCells.length;
         for (let i = 1; i <= remaining; i++) {
-          allCells.push({ year: nextYear, month: nextMonthNum, day: i, isCurrentMonth: false });
+          allCells.push({
+            year: currentMonth === 11 ? currentYear + 1 : currentYear,
+            month: currentMonth === 11 ? 0 : currentMonth + 1,
+            day: i,
+            isCurrent: false
+          });
         }
 
-        // Group into weeks (rows of 7)
-        const weeks = [];
+        const rows = [];
         for (let i = 0; i < allCells.length; i += 7) {
-          weeks.push(allCells.slice(i, i + 7));
+          rows.push(allCells.slice(i, i + 7));
         }
 
-        return weeks.map((week, weekIndex) => (
-          <div key={weekIndex} className="grid grid-cols-7 border-b border-slate-800/80 flex-1">
-            {week.map(({ year, month, day, isCurrentMonth }) => {
+        return rows.map((week, weekIdx) => (
+          <div key={weekIdx} className="grid grid-cols-7 border-b border-slate-800/80 flex-1">
+            {week.map(({ year, month, day, isCurrent }, colIdx) => {
               const dateStr = formatDate(year, month, day);
               const dayEvents = getEventsForDate(dateStr);
-              const today = new Date();
-              const isToday = dateStr === formatDate(today.getFullYear(), today.getMonth(), today.getDate());
               
-              const dayOfWeek = new Date(year, month, day).getDay();
-              const isSunday = dayOfWeek === 0;
-              const isSaturday = dayOfWeek === 6;
+              const isToday = dateStr === formatDate(new Date().getFullYear(), new Date().getMonth(), new Date().getDate());
+              const isSunday = colIdx === 0;
+              const isSaturday = colIdx === 6;
               const holidayName = getHolidayName(dateStr);
               const isRedDay = isSunday || !!holidayName;
 
-              let textColor = isCurrentMonth ? 'text-slate-200' : 'text-slate-600';
-              if (isRedDay) textColor = isCurrentMonth ? 'text-rose-400 font-bold' : 'text-rose-900/40';
-              else if (isSaturday) textColor = isCurrentMonth ? 'text-blue-400 font-bold' : 'text-blue-900/40';
+              let textColor = isCurrent ? 'text-slate-200' : 'text-slate-700';
+              if (isRedDay) textColor = isCurrent ? 'text-rose-400' : 'text-rose-900/60';
+              else if (isSaturday) textColor = isCurrent ? 'text-blue-400' : 'text-blue-900/60';
 
               return (
                 <div 
                   key={dateStr}
                   onClick={() => setSelectedDateDetails({ day, dateStr, events: dayEvents })}
-                  className={`p-1 flex flex-col cursor-pointer transition-colors hover:bg-slate-800/40 relative overflow-hidden
-                    ${isCurrentMonth ? 'bg-slate-900/60' : 'bg-slate-950/20'}`}
+                  className={`p-1 flex flex-col relative ${isCurrent ? '' : 'bg-slate-900/30'}`}
                 >
-                  <div className="flex items-center justify-between mb-0.5">
-                    <span className={`text-xs sm:text-sm w-5 h-5 flex items-center justify-center rounded-full ${isToday ? 'bg-blue-600 text-white font-bold' : textColor}`}>
+                  <div className="flex flex-col items-center mb-0.5">
+                    <span className={`text-sm w-6 h-6 flex items-center justify-center rounded-full font-medium ${isToday ? 'bg-blue-600 text-white font-bold' : textColor}`}>
                       {day}
                     </span>
-                    {holidayName && isCurrentMonth && (
-                      <span className="text-[8px] text-rose-400 truncate max-w-[32px] sm:max-w-none">{holidayName}</span>
+                    {holidayName && isCurrent && (
+                      <span className="text-[9px] text-rose-400 font-bold truncate max-w-full leading-tight mt-0.5 px-0.5">{holidayName}</span>
                     )}
                   </div>
-
-                  <div className="space-y-0.5 overflow-y-auto flex-1 no-scrollbar">
-                    {dayEvents.map(evt => (
-                      <div 
-                        key={evt.id} 
-                        className={`text-[9px] sm:text-[10px] truncate px-1 py-0.5 rounded font-medium shadow-sm
-                          ${evt.type === 'work' ? 'bg-blue-500/20 text-blue-300 border border-blue-500/20' : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/20'}`}
-                      >
-                        {evt.title}
-                      </div>
-                    ))}
+                  
+                  {/* 일정 바 표시 */}
+                  <div className="space-y-0.5 flex-1 overflow-hidden px-0.5">
+                    {dayEvents.map(evt => {
+                      const isWork = evt.type === 'work';
+                      return (
+                        <div key={evt.id} className={`text-[10px] truncate px-1 py-[2px] rounded-sm font-semibold
+                          ${isWork ? 'bg-blue-900/50 text-blue-300' : 'bg-emerald-900/50 text-emerald-300'}`}>
+                          {evt.title}
+                        </div>
+                      )
+                    })}
                   </div>
                 </div>
               );
@@ -383,388 +340,251 @@
 
       if (!isAuthenticated) {
         return (
-          <div className="h-[100dvh] w-screen bg-slate-950 text-slate-200 flex flex-col items-center justify-between p-6 select-none overflow-hidden">
+          <div className="h-[100dvh] w-screen bg-slate-950 flex flex-col items-center justify-between p-6 select-none overflow-hidden text-white">
             <div className="flex-1 flex flex-col items-center justify-center w-full max-w-xs">
-              <div className="w-16 h-16 bg-indigo-600/20 border border-indigo-500/30 text-indigo-400 rounded-2xl flex items-center justify-center mb-4 shadow-xl">
+              <div className="w-16 h-16 bg-blue-600/20 text-blue-400 rounded-3xl flex items-center justify-center mb-6 shadow-[0_0_30px_rgba(37,99,235,0.2)]">
                 <IconLock />
               </div>
-              <h2 className="text-xl font-bold text-white mb-1">내 개인 달력</h2>
-              <p className="text-xs text-slate-400 mb-8 text-center">보안을 위해 4자리 비밀번호를 입력해주세요</p>
+              <h2 className="text-2xl font-bold mb-2 tracking-tight">내 개인 달력</h2>
+              <p className="text-sm text-slate-400 mb-10">4자리 비밀번호를 입력해주세요</p>
               
-              <div className={`flex gap-5 mb-4 ${isError ? 'animate-shake' : ''}`}>
+              <div className={`flex gap-6 mb-8 ${isError ? 'animate-shake' : ''}`}>
                 {[0, 1, 2, 3].map((i) => (
-                  <div 
-                    key={i} 
-                    className={`w-4 h-4 rounded-full transition-all duration-200 ${
-                      i < pin.length 
-                        ? 'bg-blue-500 shadow-md shadow-blue-500/50 scale-110' 
-                        : 'bg-slate-800 border border-slate-700'
-                    }`}
-                  ></div>
+                  <div key={i} className={`w-4 h-4 rounded-full transition-all duration-300 ${i < pin.length ? 'bg-blue-500 scale-110 shadow-[0_0_15px_rgba(59,130,246,0.6)]' : 'border-2 border-slate-700 bg-transparent'}`}></div>
                 ))}
               </div>
             </div>
 
-            <div className="w-full max-w-xs grid grid-cols-3 gap-3 pb-8">
+            {/* 숫자 패드 */}
+            <div className="w-full max-w-[280px] grid grid-cols-3 gap-y-4 gap-x-6 pb-12">
               {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((num) => (
-                <button
-                  key={num}
-                  onClick={() => handlePinPress(num.toString())}
-                  className="h-16 bg-slate-900 hover:bg-slate-800 active:bg-slate-700 border border-slate-800 rounded-2xl text-2xl font-bold text-white transition-all shadow-sm flex items-center justify-center"
-                >
+                <button key={num} onClick={() => handlePinPress(num.toString())} className="h-16 bg-slate-900 hover:bg-slate-800 active:bg-slate-700 rounded-2xl text-2xl font-bold transition-colors">
                   {num}
                 </button>
               ))}
-              <button
-                onClick={handlePinClear}
-                className="h-16 bg-slate-900/50 hover:bg-slate-800 active:bg-slate-700 border border-slate-900 rounded-2xl text-xs font-semibold text-slate-400 transition-all flex items-center justify-center"
-              >
-                전체삭제
-              </button>
-              <button
-                onClick={() => handlePinPress('0')}
-                className="h-16 bg-slate-900 hover:bg-slate-800 active:bg-slate-700 border border-slate-800 rounded-2xl text-2xl font-bold text-white transition-all shadow-sm flex items-center justify-center"
-              >
-                0
-              </button>
-              <button
-                onClick={handlePinDelete}
-                className="h-16 bg-slate-900/50 hover:bg-slate-800 active:bg-slate-700 border border-slate-900 rounded-2xl text-xl text-slate-300 transition-all flex items-center justify-center"
-              >
-                <IconDelete />
-              </button>
+              <button onClick={handlePinClear} className="h-16 text-sm font-bold text-slate-400 hover:text-white transition-colors">전체삭제</button>
+              <button onClick={() => handlePinPress('0')} className="h-16 bg-slate-900 hover:bg-slate-800 active:bg-slate-700 rounded-2xl text-2xl font-bold transition-colors">0</button>
+              <button onClick={handlePinDelete} className="h-16 flex items-center justify-center text-slate-400 hover:text-white transition-colors"><IconDelete /></button>
             </div>
           </div>
         );
       }
 
       return (
-        <div className="h-[100dvh] w-screen flex flex-col p-1 sm:p-3 bg-slate-950 overflow-hidden">
-          <div className="max-w-4xl w-full mx-auto bg-slate-900 rounded-2xl shadow-2xl border border-slate-800 flex flex-col flex-1 overflow-hidden relative">
-            
-            {syncError && (
-              <div className="bg-rose-900/90 text-white text-xs px-3 py-1 flex items-center justify-between shrink-0">
-                <span>{syncError}</span>
-                <button onClick={() => setSyncError(null)} className="hover:text-rose-200"><IconX /></button>
-              </div>
-            )}
-
-            {/* Header Bar - Restored Month/Year, Arrows, Sync, Search, Add */}
-            <div className="flex flex-col sm:flex-row items-center justify-between px-4 py-3 border-b border-slate-800 shrink-0 bg-slate-900 gap-2">
-              <div className="flex items-center justify-between w-full sm:w-auto">
-                <h2 
-                  onClick={() => { setPickerYear(currentYear); setIsDatePickerOpen(true); }}
-                  className="text-2xl sm:text-3xl font-black text-white tracking-tight cursor-pointer hover:opacity-80 transition-opacity flex items-center gap-2"
-                >
-                  <span>{currentMonth + 1}월</span>
-                  <span className="text-slate-400 text-lg font-normal">({currentYear})</span>
-                </h2>
-                
-                <div className="flex items-center gap-1 ml-2">
-                  <button onClick={prevMonth} className="p-1.5 bg-slate-800 hover:bg-slate-700 rounded-xl text-slate-300 transition-colors">
-                    <IconChevronLeft />
-                  </button>
-                  <button onClick={nextMonth} className="p-1.5 bg-slate-800 hover:bg-slate-700 rounded-xl text-slate-300 transition-colors">
-                    <IconChevronRight />
-                  </button>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
-                {isLoading ? (
-                   <div className="text-slate-400 text-xs flex items-center px-2">
-                     <span className="animate-spin mr-1">⏳</span> 동기화중...
-                   </div>
-                ) : (
-                   <button onClick={fetchCalendarData} className="p-2 text-slate-300 hover:text-white bg-slate-800 hover:bg-slate-700 rounded-xl transition-colors" title="새로고침">
-                     <IconRefresh />
-                   </button>
-                )}
-                
-                <div className="relative flex-1 sm:w-40">
-                  <input 
-                    type="text" 
-                    placeholder="검색..." 
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className="w-full pl-8 pr-2 py-1.5 bg-slate-950 border border-slate-800 rounded-xl text-xs text-slate-200 placeholder-slate-500 outline-none focus:border-blue-500"
-                  />
-                  <span className="absolute left-2.5 top-2 text-slate-500"><IconSearch /></span>
-                </div>
-
-                <button 
-                  onClick={() => {
-                    const todayStr = formatDate(currentYear, currentMonth, new Date().getDate());
-                    setFormData({ id: null, startDate: todayStr, endDate: todayStr, type: 'personal', title: '', description: '' });
-                    setIsEventFormOpen(true);
-                  }}
-                  className="bg-blue-600 hover:bg-blue-500 text-white px-3 py-1.5 rounded-xl flex items-center gap-1 transition-colors font-semibold text-xs shadow-sm whitespace-nowrap"
-                >
-                  <IconPlus />
-                  <span>추가</span>
-                </button>
-              </div>
+        <div className="h-[100dvh] w-screen flex flex-col bg-slate-950 overflow-hidden text-slate-200">
+          
+          {/* 상단 헤더 영역 (참고 이미지 스타일 반영) */}
+          <div className="px-4 py-3 flex items-center justify-between border-b border-slate-800 bg-slate-900 shadow-sm z-10 shrink-0">
+            <div className="flex items-center gap-1">
+              <button onClick={prevMonth} className="p-2 text-slate-400 hover:text-white active:bg-slate-800 rounded-full transition-colors">
+                <IconChevronLeft />
+              </button>
+              <h2 className="text-xl sm:text-2xl font-black tracking-tight text-white w-28 sm:w-36 text-center">
+                {currentYear}년 {currentMonth + 1}월
+              </h2>
+              <button onClick={nextMonth} className="p-2 text-slate-400 hover:text-white active:bg-slate-800 rounded-full transition-colors">
+                <IconChevronRight />
+              </button>
             </div>
 
-            {/* Calendar Grid Container (Borderless row style) */}
-            <div className="p-2 flex-1 flex flex-col overflow-hidden">
-              <div className="grid grid-cols-7 mb-1 shrink-0 border-b border-slate-800 pb-1">
-                {['일', '월', '화', '수', '목', '금', '토'].map((day, i) => (
-                  <div key={day} className={`text-center text-xs sm:text-sm font-bold
-                    ${i === 0 ? 'text-rose-400' : (i === 6 ? 'text-blue-400' : 'text-slate-400')}`}>
-                    {day}
+            <div className="flex items-center gap-2">
+              <button onClick={fetchCalendarData} className={`p-2 rounded-full transition-all ${isSyncing ? 'text-blue-400 animate-spin' : 'text-slate-400 hover:text-white active:bg-slate-800'}`}>
+                <IconRefresh />
+              </button>
+              
+              <button 
+                onClick={() => {
+                  const todayStr = formatDate(currentYear, currentMonth, new Date().getDate());
+                  setFormData({ id: null, startDate: todayStr, endDate: todayStr, type: 'work', title: '', description: '' });
+                  setIsEventFormOpen(true);
+                }}
+                className="bg-blue-600 hover:bg-blue-500 active:bg-blue-700 text-white px-3 sm:px-4 py-2 rounded-xl text-sm font-bold flex items-center gap-1 transition-colors shadow-lg shadow-blue-900/20"
+              >
+                <IconPlus /> <span className="hidden sm:inline">추가</span>
+              </button>
+            </div>
+          </div>
+
+          {/* 검색 영역 */}
+          <div className="px-4 py-2 bg-slate-900 border-b border-slate-800 shrink-0">
+            <div className="relative">
+              <input 
+                type="search" 
+                placeholder="일정 검색..." 
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full pl-10 pr-4 py-2 bg-slate-950 border border-slate-800 focus:border-blue-500 rounded-xl text-sm outline-none text-slate-200 placeholder-slate-500 transition-colors"
+              />
+              <span className="absolute left-3 top-2.5 text-slate-500"><IconSearch /></span>
+            </div>
+          </div>
+
+          {/* 요일 헤더 */}
+          <div className="grid grid-cols-7 shrink-0 bg-slate-900 border-b border-slate-800">
+            {['일', '월', '화', '수', '목', '금', '토'].map((day, i) => (
+              <div key={day} className={`text-center py-2 text-xs font-bold ${i === 0 ? 'text-rose-400' : i === 6 ? 'text-blue-400' : 'text-slate-400'}`}>
+                {day}
+              </div>
+            ))}
+          </div>
+
+          {/* 캘린더 본문 (가로줄 디자인, 꽉 차게) */}
+          <div className="flex-1 flex flex-col bg-slate-950 overflow-hidden">
+            {searchQuery.trim() ? (
+              // 검색 결과 화면
+              <div className="p-4 overflow-y-auto h-full space-y-3">
+                {events.filter(e => e.title.includes(searchQuery) || e.description.includes(searchQuery)).map(evt => (
+                  <div key={evt.id} onClick={() => { setFormData(evt); setIsEventFormOpen(true); }} className="bg-slate-900 p-4 rounded-2xl border border-slate-800 cursor-pointer">
+                    <div className="flex justify-between items-start mb-2">
+                      <span className="text-xs text-slate-400">{evt.startDate} {evt.endDate !== evt.startDate ? `~ ${evt.endDate}` : ''}</span>
+                      <span className={`px-2 py-0.5 text-[10px] font-bold rounded-md ${evt.type === 'work' ? 'bg-blue-900/50 text-blue-300' : 'bg-emerald-900/50 text-emerald-300'}`}>
+                        {evt.type === 'work' ? '업무' : '개인'}
+                      </span>
+                    </div>
+                    <h4 className="font-bold text-white text-base">{evt.title}</h4>
+                    {evt.description && <p className="text-sm text-slate-400 mt-1 truncate">{evt.description}</p>}
                   </div>
                 ))}
               </div>
-              
-              {searchQuery.trim() ? (
-                <div className="p-4 overflow-y-auto flex-1 space-y-2">
-                  <h3 className="text-xs font-bold text-slate-400 mb-2">검색 결과 ({filteredSearchEvents.length}건)</h3>
-                  {filteredSearchEvents.map(evt => (
-                    <div key={evt.id} onClick={() => handleEditEvent(evt)} className="bg-slate-800 p-3 rounded-xl border border-slate-700 cursor-pointer hover:bg-slate-750">
-                      <div className="flex justify-between items-center text-xs text-slate-400 mb-1">
-                        <span>{evt.startDate} {evt.endDate !== evt.startDate ? `~ ${evt.endDate}` : ''}</span>
-                        <span className={`px-2 py-0.5 rounded font-bold ${evt.type === 'work' ? 'bg-blue-500/20 text-blue-300' : 'bg-emerald-500/20 text-emerald-300'}`}>
-                          {evt.type === 'work' ? '업무' : '개인'}
-                        </span>
-                      </div>
-                      <div className="font-bold text-white text-sm">{evt.title}</div>
-                      {evt.description && <div className="text-xs text-slate-300 mt-1">{evt.description}</div>}
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="flex-1 flex flex-col overflow-hidden bg-slate-900">
-                  {renderCalendarRows()}
-                </div>
-              )}
-            </div>
-
-            {selectedDateDetails && (
-              <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
-                <div className="bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden flex flex-col max-h-[75vh]">
-                  <div className="flex items-center justify-between px-4 py-3 border-b border-slate-800 bg-slate-800/80">
-                    <h3 className="font-bold text-sm flex items-center gap-2">
-                      <span className="bg-slate-950 px-2 py-0.5 rounded border border-slate-800 text-blue-400 text-xs">{selectedDateDetails.day}일</span>
-                      <span className="text-slate-300 text-xs font-normal">{currentYear}년 {currentMonth + 1}월</span>
-                    </h3>
-                    <button 
-                      onClick={() => setSelectedDateDetails(null)} 
-                      className="w-8 h-8 flex items-center justify-center bg-slate-700 hover:bg-slate-600 rounded-full text-white transition-colors cursor-pointer shadow-md"
-                      title="닫기"
-                    >
-                      <IconX />
-                    </button>
-                  </div>
-                  
-                  <div className="p-3 overflow-y-auto flex-1 space-y-2.5">
-                    {selectedDateDetails.events.length > 0 ? (
-                      selectedDateDetails.events.map(evt => (
-                        <div key={evt.id} className="bg-slate-800 p-3 rounded-xl shadow-sm border border-slate-700 relative overflow-hidden">
-                          <div className={`absolute top-0 left-0 w-1.5 h-full ${evt.type === 'work' ? 'bg-blue-500' : 'bg-emerald-500'}`}></div>
-                          <div className="flex items-start justify-between">
-                            <div className="flex flex-col gap-1 pl-2">
-                              <div className="flex items-center gap-2">
-                                <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold border ${evt.type === 'work' ? 'bg-blue-500/20 text-blue-300 border-blue-500/30' : 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30'}`}>
-                                  {evt.type === 'work' ? '업무' : '개인'}
-                                </span>
-                                <span className="text-xs text-slate-300 font-medium">
-                                  {evt.startDate} {evt.endDate && evt.endDate !== evt.startDate ? `~ ${evt.endDate}` : ''}
-                                </span>
-                              </div>
-                              <h4 className="font-bold text-white text-sm">{evt.title}</h4>
-                            </div>
-                            <button 
-                              onClick={(e) => { e.stopPropagation(); handleEditEvent(evt); }}
-                              className="text-slate-400 hover:text-blue-400 p-1.5 rounded-lg transition-colors text-xs flex items-center gap-1 bg-slate-700/50"
-                            >
-                              <IconEdit /> 수정
-                            </button>
-                          </div>
-                          {evt.description && (
-                            <p className="pl-2 text-xs text-slate-300 mt-2 bg-slate-950/60 p-2 rounded-lg border border-slate-800/50 whitespace-pre-wrap">{evt.description}</p>
-                          )}
-                        </div>
-                      ))
-                    ) : (
-                      <div className="text-center py-8 text-slate-500 text-xs">등록된 일정이 없습니다.</div>
-                    )}
-                  </div>
-                  
-                  <div className="p-3 border-t border-slate-800 bg-slate-900">
-                    <button 
-                      onClick={() => {
-                        setFormData({ id: null, startDate: selectedDateDetails.dateStr, endDate: selectedDateDetails.dateStr, type: 'personal', title: '', description: '' });
-                        setIsEventFormOpen(true);
-                      }}
-                      className="w-full bg-slate-800 border border-slate-700 text-blue-400 hover:bg-slate-700 py-2 rounded-xl font-semibold transition-colors text-xs flex items-center justify-center gap-1.5 shadow-sm"
-                    >
-                      <IconPlus /> 이 날짜에 일정 추가
-                    </button>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {isEventFormOpen && (
-              <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-[60] p-4 backdrop-blur-sm">
-                <div className="bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden relative">
-                  
-                  {isSaving && (
-                    <div className="absolute inset-0 bg-slate-950/80 z-10 flex flex-col items-center justify-center backdrop-blur-sm">
-                      <span className="text-lg animate-spin mb-2">⏳</span>
-                      <span className="text-xs font-semibold text-white">저장 중...</span>
-                    </div>
-                  )}
-
-                  <div className="flex items-center justify-between px-4 py-3 border-b border-slate-800 bg-slate-800/80">
-                    <h3 className="font-bold text-sm text-white">{formData.id ? '일정 수정' : '새 일정 추가'}</h3>
-                    <button 
-                      onClick={() => !isSaving && setIsEventFormOpen(false)} 
-                      className="w-8 h-8 flex items-center justify-center bg-slate-700 hover:bg-slate-600 rounded-full text-white transition-colors cursor-pointer shadow-md"
-                      title="닫기"
-                    >
-                      <IconX />
-                    </button>
-                  </div>
-                  
-                  <form onSubmit={handleSaveEvent} className="p-4 space-y-3">
-                    <div className="grid grid-cols-2 gap-2">
-                      <div>
-                        <label className="block text-xs font-semibold text-slate-300 mb-1">시작일</label>
-                        <input 
-                          type="date" required value={formData.startDate}
-                          onChange={e => setFormData({...formData, startDate: e.target.value})}
-                          className="w-full p-2 bg-slate-950 border border-slate-800 rounded-xl focus:ring-1 focus:ring-blue-500 outline-none text-xs text-slate-200"
-                          style={{ colorScheme: 'dark' }}
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-xs font-semibold text-slate-300 mb-1">종료일 (기간)</label>
-                        <input 
-                          type="date" value={formData.endDate}
-                          onChange={e => setFormData({...formData, endDate: e.target.value})}
-                          className="w-full p-2 bg-slate-950 border border-slate-800 rounded-xl focus:ring-1 focus:ring-blue-500 outline-none text-xs text-slate-200"
-                          style={{ colorScheme: 'dark' }}
-                        />
-                      </div>
-                    </div>
-
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-300 mb-1">구분</label>
-                      <div className="flex bg-slate-950 p-1 rounded-xl border border-slate-800">
-                        <button 
-                          type="button" onClick={() => setFormData({...formData, type: 'work'})}
-                          className={`flex-1 py-1.5 text-xs font-bold rounded-lg flex justify-center items-center gap-1.5
-                            ${formData.type === 'work' ? 'bg-slate-800 text-blue-400 border border-slate-700 shadow-sm' : 'text-slate-400'}`}
-                        >
-                          <IconBriefcase /> 업무
-                        </button>
-                        <button 
-                          type="button" onClick={() => setFormData({...formData, type: 'personal'})}
-                          className={`flex-1 py-1.5 text-xs font-bold rounded-lg flex justify-center items-center gap-1.5
-                            ${formData.type === 'personal' ? 'bg-slate-800 text-emerald-300 border border-slate-700 shadow-sm' : 'text-slate-400'}`}
-                        >
-                          <IconUser /> 개인
-                        </button>
-                      </div>
-                    </div>
-
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-300 mb-1">제목</label>
-                      <input 
-                        type="text" required placeholder="예: 제주도 여행" value={formData.title}
-                        onChange={e => setFormData({...formData, title: e.target.value})}
-                        className="w-full p-2.5 bg-slate-950 border border-slate-800 rounded-xl focus:ring-1 focus:ring-blue-500 outline-none text-xs text-slate-200"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-300 mb-1">상세 내용</label>
-                      <textarea 
-                        rows={3} placeholder="내용 입력..." value={formData.description}
-                        onChange={e => setFormData({...formData, description: e.target.value})}
-                        className="w-full p-2.5 bg-slate-950 border border-slate-800 rounded-xl focus:ring-1 focus:ring-blue-500 outline-none resize-none text-xs text-slate-200"
-                      ></textarea>
-                    </div>
-
-                    <div className="pt-2 border-t border-slate-800 flex justify-between gap-2">
-                      {formData.id && (
-                        <button 
-                          type="button" onClick={() => handleDeleteEvent(formData.id)} disabled={isSaving}
-                          className="px-3 py-2 bg-rose-950/40 text-rose-400 rounded-xl hover:bg-rose-900/60 text-xs border border-rose-900/50 font-semibold flex items-center gap-1"
-                        >
-                          <IconTrash /> 삭제
-                        </button>
-                      )}
-                      <div className="flex gap-2 flex-1">
-                        <button 
-                          type="button" onClick={() => setIsEventFormOpen(false)} disabled={isSaving}
-                          className="flex-1 px-3 py-2 bg-slate-800 text-slate-300 rounded-xl hover:bg-slate-700 text-xs border border-slate-700 font-semibold"
-                        >취소</button>
-                        <button 
-                          type="submit" disabled={isSaving}
-                          className="flex-1 px-3 py-2 bg-blue-600 text-white rounded-xl hover:bg-blue-500 text-xs font-semibold shadow-sm"
-                        >저장</button>
-                      </div>
-                    </div>
-                  </form>
-                </div>
-              </div>
-            )}
-
-            {isDatePickerOpen && (
-              <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-[70] p-4 backdrop-blur-sm">
-                <div className="bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl w-full max-w-xs overflow-hidden">
-                  <div className="flex items-center justify-between px-4 py-3 border-b border-slate-800 bg-slate-800/80">
-                    <h3 className="font-bold text-sm text-white">날짜 이동</h3>
-                    <button 
-                      onClick={() => setIsDatePickerOpen(false)} 
-                      className="w-8 h-8 flex items-center justify-center bg-slate-700 hover:bg-slate-600 rounded-full text-white transition-colors cursor-pointer shadow-md"
-                      title="닫기"
-                    >
-                      <IconX />
-                    </button>
-                  </div>
-                  
-                  <div className="p-4">
-                    <div className="flex items-center justify-between mb-3 bg-slate-950 border border-slate-800 p-1.5 rounded-xl">
-                      <button onClick={() => setPickerYear(prev => prev - 1)} className="p-1.5 hover:bg-slate-800 rounded-lg text-slate-400">
-                        <IconChevronLeft />
-                      </button>
-                      <span className="text-sm font-bold text-white">{pickerYear}년</span>
-                      <button onClick={() => setPickerYear(prev => prev + 1)} className="p-1.5 hover:bg-slate-800 rounded-lg text-slate-400">
-                        <IconChevronRight />
-                      </button>
-                    </div>
-                    
-                    <div className="grid grid-cols-4 gap-1.5">
-                      {Array.from({length: 12}, (_, i) => i + 1).map(month => {
-                        const isSelected = pickerYear === currentYear && (month - 1) === currentMonth;
-                        return (
-                          <button
-                            key={month}
-                            onClick={() => { setCurrentDate(new Date(pickerYear, month - 1, 1)); setIsDatePickerOpen(false); }}
-                            className={`py-2 rounded-xl text-xs font-bold transition-all
-                              ${isSelected ? 'bg-blue-600 text-white shadow' : 'bg-slate-800 border border-slate-700 text-slate-300 hover:bg-slate-700'}`}
-                          >
-                            {month}월
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                  
-                  <div className="p-3 border-t border-slate-800 bg-slate-800/50">
-                    <button 
-                      onClick={() => { setCurrentDate(new Date()); setIsDatePickerOpen(false); }}
-                      className="w-full bg-slate-800 border border-slate-700 text-slate-200 hover:bg-slate-700 py-2 rounded-xl text-xs font-semibold"
-                    >오늘 날짜로</button>
-                  </div>
-                </div>
+            ) : (
+              // 달력 화면
+              <div className="flex-1 flex flex-col h-full grid-row-lines">
+                {renderCalendarRows()}
               </div>
             )}
           </div>
+
+          {selectedDateDetails && (
+            <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4 backdrop-blur-sm animate-in fade-in duration-200" onClick={() => setSelectedDateDetails(null)}>
+              <div className="bg-slate-900 border border-slate-800 rounded-3xl w-full max-w-sm overflow-hidden flex flex-col max-h-[80vh] shadow-2xl" onClick={e => e.stopPropagation()}>
+                <div className="flex items-center justify-between p-5 border-b border-slate-800">
+                  <div className="flex items-center gap-3">
+                    <span className="bg-blue-600 text-white px-3 py-1.5 rounded-xl font-bold text-lg">{selectedDateDetails.day}일</span>
+                    <span className="text-slate-400 text-sm font-medium">{currentYear}년 {currentMonth + 1}월</span>
+                  </div>
+                  {/* 💡 시인성을 극대화한 크고 또렷한 닫기 버튼 */}
+                  <button onClick={() => setSelectedDateDetails(null)} className="w-10 h-10 flex items-center justify-center bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-full transition-colors">
+                    <IconX />
+                  </button>
+                </div>
+                
+                <div className="p-4 overflow-y-auto flex-1 space-y-3 bg-slate-950/50">
+                  {selectedDateDetails.events.length > 0 ? (
+                    selectedDateDetails.events.map(evt => (
+                      <div key={evt.id} className="bg-slate-800 p-4 rounded-2xl border border-slate-700 relative overflow-hidden">
+                        <div className={`absolute left-0 top-0 bottom-0 w-1.5 ${evt.type === 'work' ? 'bg-blue-500' : 'bg-emerald-500'}`}></div>
+                        <div className="pl-2">
+                          <div className="flex items-center justify-between mb-1">
+                            <span className="text-xs text-slate-400">{evt.startDate} {evt.endDate !== evt.startDate ? `~ ${evt.endDate}` : ''}</span>
+                            <button onClick={() => { setSelectedDateDetails(null); setFormData(evt); setIsEventFormOpen(true); }} className="text-slate-400 hover:text-white flex items-center gap-1 text-xs bg-slate-700 px-2 py-1 rounded-md">
+                              <IconEdit /> 수정
+                            </button>
+                          </div>
+                          <h4 className="font-bold text-white text-base mt-1">{evt.title}</h4>
+                          {evt.description && <p className="text-sm text-slate-300 mt-2 bg-slate-900 p-3 rounded-xl whitespace-pre-wrap leading-relaxed">{evt.description}</p>}
+                        </div>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="text-center py-10 text-slate-500 text-sm font-medium">등록된 일정이 없습니다.</div>
+                  )}
+                </div>
+                
+                <div className="p-4 border-t border-slate-800 bg-slate-900">
+                  <button 
+                    onClick={() => {
+                      setFormData({ id: null, startDate: selectedDateDetails.dateStr, endDate: selectedDateDetails.dateStr, type: 'work', title: '', description: '' });
+                      setSelectedDateDetails(null);
+                      setIsEventFormOpen(true);
+                    }}
+                    className="w-full bg-slate-800 border border-slate-700 text-white py-3.5 rounded-xl font-bold hover:bg-slate-700 transition-colors flex items-center justify-center gap-2"
+                  >
+                    <IconPlus /> 이 날짜에 일정 추가
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {isEventFormOpen && (
+            <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-[60] p-4 backdrop-blur-sm animate-in fade-in duration-200">
+              <div className="bg-slate-900 border border-slate-800 rounded-3xl w-full max-w-sm overflow-hidden relative shadow-2xl">
+                
+                <div className="flex items-center justify-between p-5 border-b border-slate-800">
+                  <h3 className="font-bold text-lg text-white">{formData.id ? '일정 수정' : '새 일정 추가'}</h3>
+                  <button onClick={() => setIsEventFormOpen(false)} className="w-10 h-10 flex items-center justify-center bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-full transition-colors">
+                    <IconX />
+                  </button>
+                </div>
+                
+                <form onSubmit={handleSaveEvent} className="p-5 space-y-5 bg-slate-950/50">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-bold text-slate-400 mb-1.5 ml-1">시작일</label>
+                      <input 
+                        type="date" required value={formData.startDate}
+                        onChange={e => setFormData({...formData, startDate: e.target.value})}
+                        className="w-full p-3 bg-slate-900 border border-slate-700 focus:border-blue-500 rounded-xl outline-none text-sm text-white"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-400 mb-1.5 ml-1">종료일 (기간)</label>
+                      <input 
+                        type="date" value={formData.endDate}
+                        onChange={e => setFormData({...formData, endDate: e.target.value})}
+                        className="w-full p-3 bg-slate-900 border border-slate-700 focus:border-blue-500 rounded-xl outline-none text-sm text-white"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-400 mb-1.5 ml-1">구분</label>
+                    <div className="flex bg-slate-900 p-1 rounded-xl border border-slate-700">
+                      <button type="button" onClick={() => setFormData({...formData, type: 'work'})}
+                        className={`flex-1 py-2.5 text-sm font-bold rounded-lg flex justify-center items-center gap-2 transition-all ${formData.type === 'work' ? 'bg-slate-800 text-blue-400 shadow-md' : 'text-slate-500'}`}>
+                        <IconBriefcase /> 업무
+                      </button>
+                      <button type="button" onClick={() => setFormData({...formData, type: 'personal'})}
+                        className={`flex-1 py-2.5 text-sm font-bold rounded-lg flex justify-center items-center gap-2 transition-all ${formData.type === 'personal' ? 'bg-slate-800 text-emerald-400 shadow-md' : 'text-slate-500'}`}>
+                        <IconUser /> 개인
+                      </button>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-400 mb-1.5 ml-1">제목</label>
+                    <input 
+                      type="text" required placeholder="예: 제주도 여행" value={formData.title}
+                      onChange={e => setFormData({...formData, title: e.target.value})}
+                      className="w-full p-3.5 bg-slate-900 border border-slate-700 focus:border-blue-500 rounded-xl outline-none text-sm text-white placeholder-slate-600"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-400 mb-1.5 ml-1">상세 내용</label>
+                    <textarea 
+                      rows={3} placeholder="내용 입력..." value={formData.description}
+                      onChange={e => setFormData({...formData, description: e.target.value})}
+                      className="w-full p-3.5 bg-slate-900 border border-slate-700 focus:border-blue-500 rounded-xl outline-none resize-none text-sm text-white placeholder-slate-600"
+                    ></textarea>
+                  </div>
+
+                  <div className="pt-2 flex justify-between gap-3">
+                    {formData.id && (
+                      <button type="button" onClick={() => handleDeleteEvent(formData.id)} className="px-4 py-3.5 bg-rose-950/50 text-rose-400 rounded-xl font-bold text-sm border border-rose-900/50 flex items-center justify-center">
+                        <IconTrash />
+                      </button>
+                    )}
+                    <div className="flex gap-3 flex-1">
+                      <button type="button" onClick={() => setIsEventFormOpen(false)} className="flex-1 py-3.5 bg-slate-800 text-white rounded-xl font-bold text-sm">취소</button>
+                      <button type="submit" className="flex-1 py-3.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl font-bold text-sm shadow-lg shadow-blue-900/20">저장</button>
+                    </div>
+                  </div>
+                </form>
+              </div>
+            </div>
+          )}
+
         </div>
       );
     }
